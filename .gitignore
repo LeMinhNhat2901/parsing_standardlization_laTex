@@ -144,6 +144,49 @@ ENV/
 env.bak/
 venv.bak/
 
+# Project-specific: LaTeX Parsing & Matching
+# Output directories
+output/
+results/
+processed_data/
+data/raw/
+data/processed/
+downloads/
+arxiv_data/
+
+# Model files
+*.cbm
+models/*.cbm
+catboost_info/
+*.model
+
+# Parsing outputs
+*.json
+!src/config.py
+hierarchy_*.json
+references_*.json
+matches_*.json
+
+# LaTeX artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+
+# Data files
+*.bib.bak
+*.tex.bak
+*.csv.bak
+
+# Evaluation results
+evaluation_*.txt
+metrics_*.json
+
 # Spyder project settings
 .spyderproject
 .spyproject

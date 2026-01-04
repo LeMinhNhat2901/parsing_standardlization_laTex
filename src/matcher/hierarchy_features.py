@@ -84,7 +84,12 @@ class HierarchyFeatureExtractor:
         self.citation_index = {}
         
         for elem_id, elem in self.elements.items():
-            content = elem.get('content', elem.get('text', ''))
+            # Handle both string and dict elements
+            if isinstance(elem, dict):
+                content = elem.get('content', elem.get('text', ''))
+            else:
+                content = str(elem)
+            
             if not content:
                 continue
             
@@ -153,7 +158,12 @@ class HierarchyFeatureExtractor:
         contexts = []
         
         for elem_id, elem in self.elements.items():
-            content = elem.get('content', elem.get('text', ''))
+            # Handle both string and dict elements
+            if isinstance(elem, dict):
+                content = elem.get('content', elem.get('text', ''))
+            else:
+                content = str(elem)
+            
             if not content:
                 continue
             
@@ -192,23 +202,45 @@ class HierarchyFeatureExtractor:
             # Check each parent for section type
             for parent_id in parents:
                 parent = self.elements.get(parent_id, {})
-                parent_type = parent.get('type', '')
-                parent_title = parent.get('title', parent.get('content', '')).lower()
+                # Handle both string and dict elements
+                if isinstance(parent, dict):
+                    parent_type = parent.get('type', '')
+                    parent_title = parent.get('title', parent.get('content', '')).lower()
+                else:
+                    # Element is a string - infer type from ID
+                    parent_type = ''
+                    if '-sec-' in parent_id or '-section-' in parent_id:
+                        parent_type = 'section'
+                    elif '-subsec-' in parent_id:
+                        parent_type = 'subsection'
+                    elif '-chap-' in parent_id:
+                        parent_type = 'chapter'
+                    parent_title = str(parent).lower()
                 
-                # Detect section types
-                if parent_type in ['section', 'subsection', 'chapter']:
-                    if any(kw in parent_title for kw in ['introduction', 'intro']):
+                # Detect section types from ID or title
+                section_keywords_found = False
+                
+                # Also check parent_id for section name hints
+                parent_id_lower = parent_id.lower()
+                
+                if parent_type in ['section', 'subsection', 'chapter'] or '-sec-' in parent_id_lower:
+                    if any(kw in parent_title or kw in parent_id_lower for kw in ['introduction', 'intro']):
                         features['cited_in_intro'] = 1
-                    elif any(kw in parent_title for kw in ['related', 'background', 'prior', 'previous']):
+                        section_keywords_found = True
+                    elif any(kw in parent_title or kw in parent_id_lower for kw in ['related', 'background', 'prior', 'previous']):
                         features['cited_in_related_work'] = 1
-                    elif any(kw in parent_title for kw in ['method', 'approach', 'model', 'architecture']):
+                        section_keywords_found = True
+                    elif any(kw in parent_title or kw in parent_id_lower for kw in ['method', 'approach', 'model', 'architecture']):
                         features['cited_in_methods'] = 1
-                    elif any(kw in parent_title for kw in ['result', 'experiment', 'evaluation', 'empirical']):
+                        section_keywords_found = True
+                    elif any(kw in parent_title or kw in parent_id_lower for kw in ['result', 'experiment', 'evaluation', 'empirical']):
                         features['cited_in_results'] = 1
-                    elif any(kw in parent_title for kw in ['conclusion', 'summary', 'discussion', 'future']):
+                        section_keywords_found = True
+                    elif any(kw in parent_title or kw in parent_id_lower for kw in ['conclusion', 'summary', 'discussion', 'future']):
                         features['cited_in_conclusion'] = 1
+                        section_keywords_found = True
                 
-                elif parent_type == 'abstract':
+                if parent_type == 'abstract' or 'abstract' in parent_id_lower:
                     features['cited_in_abstract'] = 1
         
         return features
@@ -249,8 +281,8 @@ class HierarchyFeatureExtractor:
         while current_id and current_id not in visited:
             visited.add(current_id)
             
-            elem = self.elements.get(current_id, {})
-            parent_id = elem.get('parent')
+            # Find parent from structure (hierarchy dict)
+            parent_id = self._find_parent(current_id)
             
             if parent_id:
                 depth += 1
@@ -259,6 +291,14 @@ class HierarchyFeatureExtractor:
                 break
         
         return depth
+    
+    def _find_parent(self, elem_id: str) -> Optional[str]:
+        """Find parent of an element from hierarchy structure"""
+        # structure format: {version: {child_id: parent_id}}
+        for version, mappings in self.structure.items():
+            if elem_id in mappings:
+                return mappings[elem_id]
+        return None
     
     def _get_parent_chain(self, elem_id: str) -> List[str]:
         """
@@ -274,8 +314,7 @@ class HierarchyFeatureExtractor:
         while current_id and current_id not in visited:
             visited.add(current_id)
             
-            elem = self.elements.get(current_id, {})
-            parent_id = elem.get('parent')
+            parent_id = self._find_parent(current_id)
             
             if parent_id:
                 parents.append(parent_id)
@@ -304,7 +343,11 @@ class HierarchyFeatureExtractor:
         for elem_id in contexts:
             # Check siblings and nearby elements
             elem = self.elements.get(elem_id, {})
-            parent_id = elem.get('parent')
+            # Handle both string and dict elements
+            if isinstance(elem, dict):
+                parent_id = elem.get('parent')
+            else:
+                parent_id = self._find_parent(elem_id)
             
             if not parent_id:
                 continue
@@ -314,7 +357,20 @@ class HierarchyFeatureExtractor:
             
             for sibling_id in siblings:
                 sibling = self.elements.get(sibling_id, {})
-                sibling_type = sibling.get('type', '').lower()
+                # Handle both string and dict elements
+                if isinstance(sibling, dict):
+                    sibling_type = sibling.get('type', '').lower()
+                else:
+                    sibling_type = ''
+                    # Check ID for type hint
+                    if '-fig-' in sibling_id or '-figure-' in sibling_id:
+                        sibling_type = 'figure'
+                    elif '-table-' in sibling_id:
+                        sibling_type = 'table'
+                    elif '-formula-' in sibling_id or '-eq-' in sibling_id:
+                        sibling_type = 'formula'
+                    elif '-item-' in sibling_id:
+                        sibling_type = 'itemize'
                 
                 if 'figure' in sibling_type:
                     features['near_figure'] = 1
@@ -326,7 +382,10 @@ class HierarchyFeatureExtractor:
                     features['in_itemize'] = 1
             
             # Also check element type itself
-            elem_type = elem.get('type', '').lower()
+            if isinstance(elem, dict):
+                elem_type = elem.get('type', '').lower()
+            else:
+                elem_type = ''
             if elem_type in ['itemize', 'enumerate', 'list', 'item']:
                 features['in_itemize'] = 1
         
@@ -336,9 +395,11 @@ class HierarchyFeatureExtractor:
         """Get all child elements of a parent"""
         siblings = []
         
-        for elem_id, elem in self.elements.items():
-            if elem.get('parent') == parent_id:
-                siblings.append(elem_id)
+        # Search in structure (hierarchy dict)
+        for version, mappings in self.structure.items():
+            for child_id, pid in mappings.items():
+                if pid == parent_id:
+                    siblings.append(child_id)
         
         return siblings
     

@@ -85,7 +85,7 @@ Build a machine learning pipeline using CatBoost to match BibTeX references with
 
 ```bash
 # Clone repository (if applicable)
-git clone <repository-url>
+git clone https://github.com/LeMinhNhat2901/parsing_standardlization_laTex.git
 cd parsing_standardlization_laTex
 
 # Create virtual environment

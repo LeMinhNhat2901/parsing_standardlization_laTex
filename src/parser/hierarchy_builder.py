@@ -403,6 +403,24 @@ class HierarchyBuilder:
         self.id_counter += 1
         return f"{self.arxiv_id}-{element_type}-{self.id_counter}"
     
+    def get_elements(self) -> Dict:
+        """
+        Get all parsed elements
+        
+        Returns:
+            Dict of {element_id: element_content}
+        """
+        return self.elements
+    
+    def get_hierarchy(self) -> Dict:
+        """
+        Get hierarchy structure
+        
+        Returns:
+            Dict of {version: {child_id: parent_id}}
+        """
+        return dict(self.hierarchy)
+    
     def get_hierarchy_json(self) -> Dict:
         """
         Export hierarchy in required JSON format

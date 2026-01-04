@@ -312,3 +312,27 @@ class ReferenceExtractor:
         
         self.bibtex_entries = all_entries
         return all_entries
+    
+    def extract_bibitems(self, latex_content: str) -> Dict:
+        """
+        Alias for extract_from_bibitem
+        
+        Args:
+            latex_content: LaTeX content containing bibliography
+        
+        Returns:
+            Dict of BibTeX entries {key: entry_dict}
+        """
+        return self.extract_from_bibitem(latex_content)
+    
+    def parse_bib_file(self, bib_path: str) -> Dict:
+        """
+        Alias for extract_from_bib_file
+        
+        Args:
+            bib_path: Path to .bib file
+        
+        Returns:
+            Dict of BibTeX entries
+        """
+        return self.extract_from_bib_file(bib_path)

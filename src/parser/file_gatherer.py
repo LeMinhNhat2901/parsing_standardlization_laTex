@@ -257,3 +257,47 @@ class FileGatherer:
         ignored = all_tex_files - included_files
         
         return list(ignored)
+    
+    def combine_files(self, files: List[Path]) -> str:
+        """
+        Combine content from multiple .tex files
+        
+        Resolves \input and \include commands by inserting file contents
+        
+        Args:
+            files: List of file paths to combine
+        
+        Returns:
+            Combined LaTeX content as single string
+        """
+        combined = ""
+        
+        for file_path in files:
+            try:
+                content = read_tex_file(file_path)
+                combined += f"\n% === From {file_path.name} ===\n"
+                combined += content + "\n"
+            except Exception as e:
+                print(f"Warning: Could not read {file_path}: {e}")
+        
+        return combined
+    
+    def get_file_statistics(self) -> Dict:
+        """
+        Get statistics about gathered files
+        
+        Returns:
+            Dict with file statistics
+        """
+        versions = self.get_all_version_files()
+        
+        stats = {
+            'total_versions': len(versions),
+            'total_files': sum(len(files) for files in versions.values()),
+            'files_per_version': {},
+        }
+        
+        for version, files in versions.items():
+            stats['files_per_version'][version] = len(files)
+        
+        return stats

@@ -165,10 +165,15 @@ def process_publication(input_dir: str, output_dir: str, arxiv_id: str,
     # Clean all element content
     elements = builder.get_elements()
     for elem_id, elem in elements.items():
-        if 'content' in elem:
-            elem['content'] = cleaner.clean(elem['content'])
-        if 'text' in elem:
-            elem['text'] = cleaner.clean(elem['text'])
+        # Elements can be strings or dicts
+        if isinstance(elem, dict):
+            if 'content' in elem:
+                elem['content'] = cleaner.clean(elem['content'])
+            if 'text' in elem:
+                elem['text'] = cleaner.clean(elem['text'])
+        elif isinstance(elem, str):
+            # Element is a string - clean it directly
+            elements[elem_id] = cleaner.clean(elem)
     
     logger.info("Cleaned all element content")
     progress.complete_step(3)
@@ -191,7 +196,11 @@ def process_publication(input_dir: str, output_dir: str, arxiv_id: str,
     # Try to load existing .bib files
     for files in version_files.values():
         for file in files:
-            if file.endswith('.bib'):
+            # file is a Path object, check suffix
+            if isinstance(file, Path) and file.suffix == '.bib':
+                file_entries = ref_extractor.parse_bib_file(str(file))
+                bibtex_entries.update(file_entries)
+            elif isinstance(file, str) and file.endswith('.bib'):
                 file_entries = ref_extractor.parse_bib_file(file)
                 bibtex_entries.update(file_entries)
     
@@ -218,8 +227,17 @@ def process_publication(input_dir: str, output_dir: str, arxiv_id: str,
         )
         
         # 5b. Deduplicate content across versions
-        elements_dict = {elem_id: elem.get('content', '') 
-                        for elem_id, elem in elements.items()}
+        # Build elements_dict: handle both string and dict elements
+        elements_dict = {}
+        for elem_id, elem in elements.items():
+            if isinstance(elem, dict):
+                # Dict element - extract content/text
+                content = elem.get('content', elem.get('text', ''))
+            else:
+                # String element - use directly
+                content = str(elem)
+            elements_dict[elem_id] = content
+        
         deduped_elements, id_mapping = deduper.deduplicate_content(elements_dict)
         
         stats['deduplicated_refs'] = len(deduplicated_refs)

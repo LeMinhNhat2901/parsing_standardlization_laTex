@@ -83,24 +83,89 @@ project_logger = setup_logger(
 
 class ProgressLogger:
     """
-    Helper class for logging progress
+    Helper class for logging progress through pipeline steps
     """
     
-    def __init__(self, logger, total, desc="Processing"):
+    def __init__(self, total_steps=None, desc="Processing", logger=None):
         """
         Args:
-            logger: Logger instance
-            total: Total number of items
+            total_steps: Total number of steps (for step-based progress)
             desc: Description for progress
+            logger: Logger instance (optional, uses default if not provided)
         """
-        self.logger = logger
-        self.total = total
-        self.desc = desc
+        # Handle both old and new constructor signatures
+        if isinstance(total_steps, logging.Logger):
+            # Old signature: ProgressLogger(logger, total, desc)
+            self.logger = total_steps
+            self.total = desc if isinstance(desc, int) else 0
+            self.desc = "Processing"
+        else:
+            # New signature: ProgressLogger(total_steps, desc, logger)
+            self.logger = logger or project_logger
+            self.total = total_steps or 0
+            self.desc = desc
+        
         self.current = 0
+        self.steps = {}
+        self.start_time = datetime.now()
+    
+    def start_step(self, step_num, step_name):
+        """
+        Mark the start of a step
+        
+        Args:
+            step_num: Step number
+            step_name: Name of the step
+        """
+        self.steps[step_num] = {
+            'name': step_name,
+            'status': 'in_progress',
+            'start_time': datetime.now()
+        }
+        self.logger.info(f"[Step {step_num}/{self.total}] Starting: {step_name}")
+    
+    def complete_step(self, step_num, message=None):
+        """
+        Mark a step as complete
+        
+        Args:
+            step_num: Step number
+            message: Optional completion message
+        """
+        if step_num in self.steps:
+            self.steps[step_num]['status'] = 'complete'
+            self.steps[step_num]['end_time'] = datetime.now()
+            duration = self.steps[step_num]['end_time'] - self.steps[step_num]['start_time']
+            step_name = self.steps[step_num]['name']
+            
+            msg = f"[Step {step_num}/{self.total}] ✓ Complete: {step_name} ({duration.total_seconds():.1f}s)"
+            if message:
+                msg += f" - {message}"
+            self.logger.info(msg)
+        
+        self.current = step_num
+    
+    def skip_step(self, step_num, reason=None):
+        """
+        Mark a step as skipped
+        
+        Args:
+            step_num: Step number
+            reason: Reason for skipping
+        """
+        msg = f"[Step {step_num}/{self.total}] ⊘ Skipped"
+        if reason:
+            msg += f": {reason}"
+        self.logger.info(msg)
+        
+        self.steps[step_num] = {
+            'name': reason or 'Skipped',
+            'status': 'skipped'
+        }
     
     def update(self, n=1, message=None):
         """
-        Update progress
+        Update progress (for item-based tracking)
         
         Args:
             n: Number of items completed
@@ -115,9 +180,26 @@ class ProgressLogger:
         
         self.logger.info(log_msg)
     
-    def complete(self):
-        """Log completion"""
-        self.logger.info(f"{self.desc}: Complete! ({self.total} items)")
+    def complete(self, message=None):
+        """Log completion of entire process"""
+        duration = datetime.now() - self.start_time
+        msg = f"✅ {self.desc}: Complete! (Total time: {duration.total_seconds():.1f}s)"
+        if message:
+            msg += f" - {message}"
+        self.logger.info(msg)
+    
+    def error(self, step_num, error_msg):
+        """
+        Log an error in a step
+        
+        Args:
+            step_num: Step number
+            error_msg: Error message
+        """
+        self.logger.error(f"[Step {step_num}/{self.total}] ✗ Error: {error_msg}")
+        if step_num in self.steps:
+            self.steps[step_num]['status'] = 'error'
+            self.steps[step_num]['error'] = error_msg
 
 
 def log_statistics(logger, stats_dict, title="Statistics"):
