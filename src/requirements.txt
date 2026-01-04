@@ -1,0 +1,52 @@
+# ============================================
+# REQUIREMENTS.TXT - Lab 2 V1
+# ============================================
+
+# Core
+numpy==1.24.3
+pandas==2.0.3
+
+# LaTeX Parsing
+TexSoup==0.3.1
+regex==2023.12.25
+
+# BibTeX Handling
+bibtexparser==1.4.1
+pybtex==0.24.0
+
+# Natural Language Processing
+nltk==3.8.1
+spacy==3.7.2
+
+# Text Similarity & Matching
+scikit-learn==1.3.2
+fuzzywuzzy==0.18.0
+python-Levenshtein==0.21.1
+
+# Machine Learning
+catboost==1.2.2
+xgboost==2.0.3
+lightgbm==4.1.0
+
+# Optional: Deep Learning (if using embeddings)
+# sentence-transformers==2.2.2
+# torch==2.1.0
+# transformers==4.35.0
+
+# Utilities
+tqdm==4.66.1
+pyyaml==6.0.1
+
+# Visualization (for analysis/report)
+matplotlib==3.8.2
+seaborn==0.13.0
+
+# Testing
+pytest==7.4.3
+
+# ============================================
+# Installation Instructions:
+# 1. pip install -r requirements.txt
+# 2. python -m nltk.downloader punkt stopwords
+# 3. python -m spacy download en_core_web_sm
+# ============================================
