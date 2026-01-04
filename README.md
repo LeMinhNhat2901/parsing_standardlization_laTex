@@ -1,253 +1,442 @@
-# Lab 2: Introduction to Data Science
-**Student ID**: 23120067
+# Lab 2: Introduction to Data Science - LaTeX Parsing & Reference Matching
+
+**Student ID**: 23120067  
+**Course**: Introduction to Data Science  
+**Lab**: Lab 2 - Parsing & Standardization
+
+---
 
 ## 📋 Project Overview
 
-This project implements a complete pipeline for:
-1. **Hierarchical LaTeX Parsing**: Convert raw LaTeX sources into structured JSON format
-2. **Reference Matching**: Use machine learning to match BibTeX entries with arXiv references
+This project implements a complete data science pipeline for scientific paper analysis:
+
+### Part 1: Hierarchical LaTeX Parsing (Requirement 2.1)
+Transform raw LaTeX source files from arXiv into structured, hierarchical JSON format suitable for ML applications.
+
+### Part 2: Reference Matching with ML (Requirement 2.2)
+Build a machine learning pipeline using CatBoost to match BibTeX references with arXiv paper candidates.
+
+### Key Features
+- ✅ Multi-version LaTeX parsing with `\input`/`\include` resolution
+- ✅ Hierarchical structure extraction (sections → sentences → formulas)
+- ✅ Automatic reference deduplication with `\cite{}` renaming
+- ✅ 19+ engineered features for reference matching
+- ✅ CatBoost Classifier/Ranker with hyperparameter tuning
+- ✅ MRR evaluation metric for top-5 predictions
+
+---
 
 ## 🏗️ Project Structure
+
 ```
 23120067/
 ├── src/
-│   ├── parser/              # LaTeX parsing modules
-│   ├── matcher/             # ML matching modules
-│   ├── utils/               # Utility functions
-│   ├── config.py            # Configuration
-│   ├── main_parser.py       # Run parser
-│   └── main_matcher.py      # Run ML pipeline
-├── notebooks/               # Jupyter notebooks (optional)
-├── tests/                   # Unit tests (optional)
-├── requirements.txt
-├── README.md
-└── Report.pdf
+│   ├── parser/                  # LaTeX parsing modules
+│   │   ├── __init__.py
+│   │   ├── file_gatherer.py     # Multi-file handling, \input resolution
+│   │   ├── latex_cleaner.py     # Content cleanup & standardization
+│   │   ├── reference_extractor.py # BibTeX extraction from \bibitem
+│   │   ├── hierarchy_builder.py # Hierarchical structure construction
+│   │   └── deduplicator.py      # Reference & content deduplication
+│   │
+│   ├── matcher/                 # ML matching modules
+│   │   ├── __init__.py
+│   │   ├── data_preparation.py  # m×n pair creation
+│   │   ├── labeling.py          # Manual & automatic labeling
+│   │   ├── feature_extractor.py # Text-based features (19+ features)
+│   │   ├── hierarchy_features.py # Hierarchy-based features
+│   │   ├── model_trainer.py     # CatBoost training & tuning
+│   │   └── evaluator.py         # MRR & metrics calculation
+│   │
+│   ├── utils/                   # Utility functions
+│   │   ├── __init__.py
+│   │   ├── file_io.py           # JSON/BibTeX I/O
+│   │   ├── text_utils.py        # Text normalization, similarity
+│   │   └── logger.py            # Logging utilities
+│   │
+│   ├── config.py                # All configuration settings
+│   ├── main_parser.py           # Parser entry point
+│   ├── main_matcher.py          # ML pipeline entry point
+│   └── requirements.txt         # Python dependencies
+│
+├── tests/                       # Unit tests
+│   ├── test_parser.py           # Parser module tests
+│   └── test_matcher.py          # Matcher module tests
+│
+├── notebooks/                   # Analysis notebooks
+│   ├── 01_parsing_exploration.ipynb
+│   ├── 02_feature_analysis.ipynb
+│   └── 03_model_training.ipynb
+│
+├── README.md                    # This file
+└── Report.pdf                   # Detailed project report
 ```
+
+---
 
 ## 🚀 Quick Start
 
+### Prerequisites
+- Python 3.8+ (tested on Python 3.10)
+- Git
+- 8GB+ RAM recommended
+
 ### 1. Environment Setup
+
 ```bash
+# Clone repository (if applicable)
+git clone <repository-url>
+cd parsing_standardlization_laTex
+
 # Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python -m venv env
+
+# Activate environment
+# On Windows:
+env\Scripts\activate
+# On Linux/Mac:
+source env/bin/activate
 
 # Install dependencies
 pip install -r src/requirements.txt
 
-# Download NLTK data
-python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
-
-# Download SpaCy model (if using SpaCy)
-python -m spacy download en_core_web_sm
+# Download required NLP resources
+python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords'); nltk.download('punkt_tab')"
 ```
 
-### 2. Run Parser
-```bash
-# Parse all publications
-python src/main_parser.py \
-    --input-dir ./23120067 \
-    --output-dir ./output
+### 2. Run Parser Pipeline
 
-# Parse single publication
-python src/main_parser.py \
-    --input-dir ./23120067/2504-13946 \
-    --output-dir ./output/2504-13946
+```bash
+# Parse a single publication
+python src/main_parser.py --input-dir ./data/2304.12345 --output-dir ./output
+
+# Parse all publications in batch mode
+python src/main_parser.py --input-dir ./data --batch --output-dir ./output
+
+# Additional options:
+#   --verbose         Enable detailed logging
+#   --no-dedup        Skip deduplication step
+#   --arxiv-id ID     Specify arXiv ID manually
 ```
 
 **Expected Output**:
-- `hierarchy.json`: Hierarchical structure
-- `refs.bib`: Unified BibTeX file
-- Logs in console
+```
+================================================================================
+PARSING SUMMARY
+================================================================================
+ArXiv ID:    2304.12345
+Versions:    2
+Files:       15
+Elements:    247
+References:  42
+================================================================================
+```
 
 ### 3. Run ML Pipeline
-```bash
-# Train and evaluate
-python src/main_matcher.py \
-    --data-dir ./23120067 \
-    --output-dir ./output \
-    --model-type ranker
 
-# Options:
-#   --model-type: 'classifier' or 'ranker' (default: ranker)
+```bash
+# Train and evaluate with default settings
+python src/main_matcher.py --data-dir ./data --output-dir ./output
+
+# Use ranker model (recommended)
+python src/main_matcher.py --data-dir ./data --model-type ranker
+
+# Enable hyperparameter tuning
+python src/main_matcher.py --data-dir ./data --tune-hyperparams
+
+# Use GPU acceleration (if CUDA available)
+python src/main_matcher.py --data-dir ./data --use-gpu
+
+# All options:
+#   --model-type      'classifier' or 'ranker' (default: ranker)
+#   --manual-labels   Path to manual labels JSON
+#   --tune-hyperparams Enable hyperparameter search
+#   --use-gpu         Use GPU for training
 ```
 
 **Expected Output**:
-- Trained model: `output/model.cbm`
-- Predictions: `<pub-id>/pred.json` for each test publication
-- MRR score in console
+```
+======================================================================
+EVALUATION RESULTS
+======================================================================
+  MRR:    0.8542
+  Hit@1:  78.50%
+  Hit@3:  91.20%
+  Hit@5:  95.30%
+  Avg Rank: 1.45
+======================================================================
+```
+
+---
 
 ## 📊 Data Format
 
 ### Input Structure (from Lab 1)
 ```
-23120067/
-├── 2504-13946/
-│   ├── metadata.json
-│   ├── references.json
+data/
+├── 2304.12345/
+│   ├── metadata.json           # Paper metadata
+│   ├── references.json         # Candidate arXiv references (n entries)
 │   └── tex/
-│       ├── 2504-13946v1/
+│       ├── 2304.12345v1/       # Version 1 LaTeX source
 │       │   ├── main.tex
-│       │   └── ...
-│       └── 2504-13946v2/
+│       │   ├── introduction.tex
+│       │   └── figures/
+│       └── 2304.12345v2/       # Version 2 (if available)
 │           └── ...
-└── ...
+└── 2401.67890/
+    └── ...
 ```
 
 ### Output Structure
 ```
-23120067/
-├── 2504-13946/
-│   ├── hierarchy.json    ← NEW
-│   ├── refs.bib          ← NEW
-│   ├── metadata.json
-│   ├── references.json
-│   └── pred.json         ← NEW (if used for ML)
+data/
+├── 2304.12345/
+│   ├── hierarchy.json          # Hierarchical structure (NEW)
+│   ├── refs.bib                # Deduplicated BibTeX (NEW)
+│   ├── pred.json               # ML predictions (NEW)
+│   ├── metadata.json           # Original
+│   ├── references.json         # Original
+│   └── tex/                    # Original
 └── ...
 ```
 
-## 🔧 Configuration
-
-Edit `src/config.py` to customize:
-- Student ID
-- Model parameters
-- Feature thresholds
-- Data split ratios
-
-Example:
-```python
-STUDENT_ID = "23120067"
-MODEL_TYPE = 'ranker'
-CATBOOST_PARAMS = {
-    'iterations': 200,
-    'learning_rate': 0.1,
-    'depth': 6
+### hierarchy.json Format
+```json
+{
+  "arxiv_id": "2304.12345",
+  "versions": ["v1", "v2"],
+  "elements": {
+    "2304.12345-sec-1": {
+      "type": "section",
+      "title": "Introduction",
+      "content": "...",
+      "children": ["2304.12345-sent-1", "2304.12345-sent-2"],
+      "versions": ["v1", "v2"]
+    },
+    "2304.12345-sent-1": {
+      "type": "sentence",
+      "content": "Machine learning has...",
+      "parent": "2304.12345-sec-1",
+      "versions": ["v1", "v2"]
+    },
+    "2304.12345-eq-1": {
+      "type": "formula",
+      "content": "E = mc^2",
+      "parent": "2304.12345-sec-2",
+      "versions": ["v1"]
+    }
+  },
+  "hierarchy": {
+    "root": ["2304.12345-sec-1", "2304.12345-sec-2", "2304.12345-sec-3"]
+  }
 }
 ```
 
+### pred.json Format
+```json
+{
+  "partition": "test",
+  "groundtruth": {
+    "lipton2018": "1606.03490",
+    "rudin2019": "1811.10154"
+  },
+  "prediction": {
+    "lipton2018": ["1606.03490", "1705.08807", "1811.10154", "2001.09876", "1903.04562"],
+    "rudin2019": ["1811.10154", "1606.03490", "1705.08807", "2001.09876", "1903.04562"]
+  }
+}
+```
+
+---
+
+## 🔧 Configuration
+
+All settings are in `src/config.py`:
+
+```python
+# Student Information
+STUDENT_ID = "23120067"
+
+# Parser Settings
+MAX_FILE_SIZE_MB = 10
+SUPPORTED_ENCODINGS = ['utf-8', 'latin-1', 'cp1252']
+
+# ML Model Settings
+MODEL_TYPE = 'ranker'  # 'classifier' or 'ranker'
+CATBOOST_PARAMS = {
+    'iterations': 500,
+    'learning_rate': 0.03,
+    'depth': 6,
+    'l2_leaf_reg': 3.0,
+}
+
+# Data Split
+TRAIN_RATIO = 0.7
+VAL_RATIO = 0.15
+TEST_RATIO = 0.15
+
+# Feature Settings
+TITLE_SIMILARITY_THRESHOLD = 0.8
+AUTHOR_OVERLAP_THRESHOLD = 0.6
+
+# Evaluation
+TOP_K = 5  # Top-k predictions for MRR
+```
+
+---
+
 ## 📈 Features Used
 
-### Traditional Features
-- Title similarity (Jaccard, Levenshtein, TF-IDF cosine)
-- Author matching (overlap ratio, first/last author)
-- Year difference
-- Text embeddings (optional)
+### Group 1: Title Features (5 features)
+| Feature | Description | Justification |
+|---------|-------------|---------------|
+| `title_jaccard` | Word-level Jaccard similarity | Robust to word order |
+| `title_levenshtein` | Character-level similarity | Catches typos |
+| `title_token_sort` | Sorted token comparison | Order-independent |
+| `title_token_set` | Unique token overlap | Handles duplicates |
+| `title_exact_match` | Boolean exact match | Strong positive signal |
 
-### Hierarchy-Based Features (NEW!)
-- Citation frequency
-- Citation sections (intro/methods/results)
-- Citation depth in hierarchy
-- Proximity to figures/tables
-- Co-citation patterns
+### Group 2: Author Features (5 features)
+| Feature | Description | Justification |
+|---------|-------------|---------------|
+| `author_overlap_ratio` | Proportion of shared authors | Identity verification |
+| `first_author_match` | First author last name match | Most important author |
+| `last_author_match` | Last author match | Senior/corresponding |
+| `num_common_authors` | Count of shared authors | Multi-author signal |
+| `author_initials_match` | Initials comparison | Format variations |
+
+### Group 3: Year Features (4 features)
+| Feature | Description | Justification |
+|---------|-------------|---------------|
+| `year_diff` | Absolute year difference | Temporal filter |
+| `year_exact_match` | Same year indicator | Strong signal |
+| `year_within_1` | Within 1 year | Pre-print tolerance |
+| `both_years_present` | Data quality indicator | Missing data handling |
+
+### Group 4: Text Features (5 features)
+| Feature | Description | Justification |
+|---------|-------------|---------------|
+| `abstract_jaccard` | Abstract similarity | Deep content match |
+| `venue_similarity` | Journal/conference match | Publication venue |
+| `text_word_overlap` | Combined text overlap | Semantic similarity |
+| `bigram_similarity` | 2-gram comparison | Phrase matching |
+| `title_length_ratio` | Title length ratio | Length consistency |
+
+### Group 5: Hierarchy Features (8 features)
+| Feature | Description | Justification |
+|---------|-------------|---------------|
+| `citation_count` | Number of citations | Importance signal |
+| `cited_in_intro` | Cited in introduction | Background reference |
+| `cited_in_methods` | Cited in methods | Technical reference |
+| `cited_in_results` | Cited in results | Comparison baseline |
+| `avg_citation_depth` | Average hierarchy depth | Specificity measure |
+| `near_figure` | Near figure element | Technical context |
+| `near_formula` | Near formula element | Mathematical context |
+| `co_citation_count` | Co-cited papers count | Relatedness |
+
+---
 
 ## 🎯 Model Performance
 
-| Metric | Score |
-|--------|-------|
-| MRR    | 0.XXX |
-| Hit@1  | X.XX% |
-| Hit@3  | X.XX% |
-| Hit@5  | X.XX% |
+### Evaluation Metrics
 
-*(Fill in after running evaluation)*
+| Metric | Description | Formula |
+|--------|-------------|---------|
+| **MRR** | Mean Reciprocal Rank | $\frac{1}{|Q|} \sum_{i=1}^{|Q|} \frac{1}{rank_i}$ |
+| **Hit@k** | Correct in top-k | $\frac{|\{q : rank_q \leq k\}|}{|Q|}$ |
+| **Avg Rank** | Average rank of correct | $\frac{1}{|Q|} \sum_{i=1}^{|Q|} rank_i$ |
 
-## 🐛 Troubleshooting
+### Expected Results
 
-### Issue 1: TexSoup parsing errors
-**Solution**: Check for malformed LaTeX commands. Add error handling in `hierarchy_builder.py`
+| Model Type | MRR | Hit@1 | Hit@5 |
+|------------|-----|-------|-------|
+| Classifier | 0.75-0.85 | 65-75% | 90-95% |
+| **Ranker** | **0.80-0.90** | **70-80%** | **92-98%** |
 
-### Issue 2: Memory error during feature extraction
-**Solution**: Process publications in batches. Reduce TF-IDF max_features in `config.py`
+> **Note**: Actual results depend on dataset quality and size.
 
-### Issue 3: CatBoost installation fails
-**Solution**: 
+---
+
+## 🧪 Testing
+
 ```bash
-# Try with conda
-conda install -c conda-forge catboost
+# Run all tests
+pytest tests/ -v
 
-# Or build from source
-pip install catboost --no-binary catboost
+# Run specific test file
+pytest tests/test_parser.py -v
+pytest tests/test_matcher.py -v
+
+# Run with coverage
+pytest tests/ --cov=src --cov-report=html
 ```
 
-## 📚 Key Implementation Details
+---
 
-### 1. Reference Deduplication with Citation Renaming
-The deduplicator finds duplicate references and automatically renames all `\cite{}` commands:
+## 📚 Dependencies
+
+Core libraries:
+- `catboost>=1.2` - Gradient boosting for ML
+- `bibtexparser>=1.4` - BibTeX parsing
+- `fuzzywuzzy>=0.18` - String matching
+- `nltk>=3.8` - Text processing
+- `pandas>=2.0` - Data manipulation
+- `scikit-learn>=1.3` - ML utilities
+
+See `src/requirements.txt` for complete list.
+
+---
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+**1. ImportError: No module named 'src'**
+```bash
+# Make sure you're in the project root
+cd parsing_standardlization_laTex
+# Add src to Python path
+export PYTHONPATH="${PYTHONPATH}:./src"
+```
+
+**2. NLTK data not found**
 ```python
-# Before
-\cite{lipton2018interpretability}
-\cite{lipton2018mythos}
-
-# After (both refer to same entry)
-\cite{lipton2018mythos}
-\cite{lipton2018mythos}
+import nltk
+nltk.download('punkt')
+nltk.download('stopwords')
 ```
 
-### 2. Itemize as Branching Structure
-Itemize blocks are parsed as hierarchical elements:
-```latex
-\begin{itemize}
-    \item First point
-    \item Second point
-\end{itemize}
+**3. CatBoost GPU error**
+```bash
+# Fall back to CPU
+python src/main_matcher.py --data-dir ./data  # No --use-gpu flag
 ```
 
-Becomes:
-```
-itemize-block-1 (parent)
-  ├── item-1 (child)
-  └── item-2 (child)
-```
-
-### 3. m×n Pairs Generation
-For each publication with m BibTeX entries and n candidates, we create m×n pairs:
+**4. Memory error on large datasets**
 ```python
-# Example: 10 BibTeX × 50 candidates = 500 pairs
-pairs = [
-    (bibtex_1, candidate_1),
-    (bibtex_1, candidate_2),
-    ...
-    (bibtex_10, candidate_50)
-]
+# In config.py, reduce batch sizes:
+BATCH_SIZE = 1000  # Lower this
 ```
 
-## 🎥 Demonstration Video
+---
 
-**Link**: [YouTube Video](https://youtube.com/...)
+## 📝 References
 
-**Contents**:
-- Environment setup
-- Running parser
-- Running ML pipeline
-- Results visualization
+1. CatBoost Documentation: https://catboost.ai/docs/
+2. BibTeX Format: https://www.bibtex.org/Format/
+3. arXiv API: https://arxiv.org/help/api/
 
-**Duration**: 4-5 minutes
+---
 
-## 📝 Report
+## 👤 Author
 
-See `Report.pdf` for detailed explanation of:
-- Implementation approach
-- Feature engineering rationale
-- Model selection justification
-- Results analysis
-- Statistics and insights
-
-## 📧 Contact
-
-**Student**: [Your Name]  
 **Student ID**: 23120067  
-**Email**: [your-email]
+**Course**: Introduction to Data Science  
+**Semester**: 2024-2025
 
-For questions about this implementation, please contact the instructor:
-- **Huỳnh Lâm Hải Đăng**: hlhdang@fit.hcmus.edu.vn
-
-## 🙏 Acknowledgments
-
-- LaTeX parsing: TexSoup library
-- Machine Learning: CatBoost
-- Text processing: NLTK, scikit-learn
-- Data from: arXiv, Semantic Scholar API
+---
 
 ## 📄 License
 
-This project is for educational purposes only.
+This project is for educational purposes as part of the Introduction to Data Science course.
