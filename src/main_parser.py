@@ -267,6 +267,18 @@ def process_publication(input_dir: str, output_dir: str, arxiv_id: str,
     save_bibtex(refs_path, bibtex_entries)
     logger.info(f"Saved {len(bibtex_entries)} references to {refs_path}")
     
+    # Copy metadata.json and references.json from input (Lab 1 data)
+    # These files are required by the matcher but come from Lab 1 crawling
+    import shutil
+    for filename in ['metadata.json', 'references.json']:
+        src_path = os.path.join(input_dir, filename)
+        dst_path = os.path.join(output_dir, filename)
+        if os.path.exists(src_path):
+            shutil.copy2(src_path, dst_path)
+            logger.info(f"Copied {filename} from input directory")
+        else:
+            logger.warning(f"Warning: {filename} not found in input directory - required for matching!")
+    
     # Save statistics
     stats_path = os.path.join(output_dir, 'parsing_stats.json')
     save_json(stats_path, stats)
