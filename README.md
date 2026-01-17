@@ -16,13 +16,46 @@ Transform raw LaTeX source files from arXiv into structured, hierarchical JSON f
 ### Part 2: Reference Matching with ML (Requirement 2.2)
 Build a machine learning pipeline using CatBoost to match BibTeX references with arXiv paper candidates.
 
+⚠️ **QUAN TRỌNG về Manual Labeling:**
+- Theo text2.txt Section 2.2.2: "**Manually label** references"
+- Sinh viên **PHẢI TỰ TAY** label ít nhất 5 publications (≥20 pairs total)
+- **KHÔNG** được sử dụng automatic matching cho manual labels!
+
 ### Key Features
 - ✅ Multi-version LaTeX parsing with `\input`/`\include` resolution
 - ✅ Hierarchical structure extraction (sections → sentences → formulas)
 - ✅ Automatic reference deduplication with `\cite{}` renaming
-- ✅ 19+ engineered features for reference matching
+- ✅ 37 engineered features across 5 groups for reference matching
 - ✅ CatBoost Classifier/Ranker with hyperparameter tuning
 - ✅ MRR evaluation metric for top-5 predictions
+- ✅ **Interactive manual labeling tool** (tuân thủ yêu cầu 2.2.2)
+
+---
+
+## 🚀 Quick Start
+
+### 1. Tạo Manual Labels (BẮT BUỘC TỰ TAY)
+
+```bash
+# Chạy interactive labeling tool
+python src/create_manual_labels.py --output-dir output --num-pubs 5
+
+# Tool sẽ hiển thị BibTeX entries và candidates
+# BẠN phải tự xem xét và chọn match đúng
+# Output: manual_labels.json
+```
+
+### 2. Chạy ML Pipeline
+
+```bash
+# Cách 1: Sử dụng wrapper (Khuyến nghị)
+python run_matching.py --data-dir output
+
+# Cách 2: Chạy trực tiếp
+python src/main_matcher.py --data-dir output --manual-labels manual_labels.json
+```
+
+📖 **Chi tiết:** Xem [MATCHING_GUIDE.md](MATCHING_GUIDE.md)
 
 ---
 
@@ -43,11 +76,20 @@ Build a machine learning pipeline using CatBoost to match BibTeX references with
 │   │   ├── __init__.py
 │   │   ├── data_preparation.py  # m×n pair creation
 │   │   ├── labeling.py          # Manual & automatic labeling
-│   │   ├── feature_extractor.py # Text-based features (19+ features)
+│   │   ├── feature_extractor.py # Text-based features (37 features)
 │   │   ├── hierarchy_features.py # Hierarchy-based features
 │   │   ├── model_trainer.py     # CatBoost training & tuning
 │   │   └── evaluator.py         # MRR & metrics calculation
 │   │
+│   ├── create_manual_labels.py  # ⭐ Interactive manual labeling tool
+│   ├── main_matcher.py          # ⭐ ML pipeline entry point
+│   └── config.py                # Configuration
+│
+├── run_matching.py              # Wrapper script (tự động xử lý paths)
+├── manual_labels.json           # Manual labels (TỰ TAY TẠO)
+├── MATCHING_GUIDE.md            # 📖 Hướng dẫn chi tiết
+└── README.md                    # This file
+````
 │   ├── utils/                   # Utility functions
 │   │   ├── __init__.py
 │   │   ├── file_io.py           # JSON/BibTeX I/O
@@ -136,7 +178,7 @@ References:  42
 
 ```bash
 # Train and evaluate with default settings
-python src/main_matcher.py --data-dir ./data --output-dir ./output
+python src/main_matcher.py --data-dir ./output --output-dir ./output_23120067
 
 # Use ranker model (recommended)
 python src/main_matcher.py --data-dir ./data --model-type ranker

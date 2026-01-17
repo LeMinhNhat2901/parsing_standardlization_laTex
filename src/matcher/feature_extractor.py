@@ -421,7 +421,8 @@ class FeatureExtractor:
         if not authors:
             return []
         
-        if isinstance(authors, list):
+        # Use type() instead of isinstance() to avoid recursion issues
+        if type(authors).__name__ in ('list', 'tuple'):
             authors = ' and '.join(str(a) for a in authors)
         
         authors = str(authors)

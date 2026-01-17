@@ -6,9 +6,18 @@ Handles reading and writing data files with proper error handling
 import json
 import os
 from pathlib import Path
-import bibtexparser
-from bibtexparser.bwriter import BibTexWriter
-from bibtexparser.bibdatabase import BibDatabase
+
+# Make bibtexparser optional to avoid import chain issues
+try:
+    import bibtexparser
+    from bibtexparser.bwriter import BibTexWriter
+    from bibtexparser.bibdatabase import BibDatabase
+    HAS_BIBTEXPARSER = True
+except ImportError:
+    HAS_BIBTEXPARSER = False
+    bibtexparser = None
+    BibTexWriter = None
+    BibDatabase = None
 
 
 def load_json(path):
@@ -57,20 +66,46 @@ def save_bibtex(path, entries):
         path: Path to save .bib file
         entries: Dict of entries {key: entry_dict} or list of entry dicts
     """
+    if not HAS_BIBTEXPARSER:
+        # Fallback: write simple bibtex format manually
+        path = Path(path)
+        ensure_dir(path.parent)
+        with open(path, 'w', encoding='utf-8') as f:
+            # Use type() instead of isinstance() to avoid recursion issues
+            if type(entries).__name__ == 'dict':
+                for key, entry in entries.items():
+                    entry_type = entry.get('ENTRYTYPE', 'misc')
+                    f.write(f"@{entry_type}{{{key},\n")
+                    for k, v in entry.items():
+                        if k not in ['ID', 'ENTRYTYPE']:
+                            f.write(f"  {k} = {{{v}}},\n")
+                    f.write("}\n\n")
+        return
+    
     path = Path(path)
     ensure_dir(path.parent)
     
     db = BibDatabase()
     
-    if isinstance(entries, dict):
+    # Use type() instead of isinstance() to avoid recursion issues
+    if type(entries).__name__ == 'dict':
         entries_list = []
         for key, entry in entries.items():
-            entry_copy = entry.copy()
+            entry_copy = dict(entry) if type(entry).__name__ == 'dict' else {}
             entry_copy['ID'] = key
+            # CRITICAL: Ensure ENTRYTYPE is always present (required by bibtexparser)
+            if 'ENTRYTYPE' not in entry_copy:
+                entry_copy['ENTRYTYPE'] = 'misc'
             entries_list.append(entry_copy)
         db.entries = entries_list
     else:
-        db.entries = entries
+        # Ensure ENTRYTYPE for list entries too
+        db.entries = []
+        for entry in entries:
+            entry_copy = dict(entry) if type(entry).__name__ == 'dict' else {}
+            if type(entry_copy).__name__ == 'dict' and 'ENTRYTYPE' not in entry_copy:
+                entry_copy['ENTRYTYPE'] = 'misc'
+            db.entries.append(entry_copy)
     
     writer = BibTexWriter()
     writer.indent = '  '
@@ -90,6 +125,10 @@ def load_bibtex(path):
     Returns:
         Dict of BibTeX entries {key: entry_dict}
     """
+    if not HAS_BIBTEXPARSER:
+        # Return empty dict if bibtexparser not available
+        return {}
+    
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"BibTeX file not found: {path}")
@@ -98,11 +137,28 @@ def load_bibtex(path):
         bib_database = bibtexparser.load(f)
     
     # Convert to dictionary with ID as key
+    # IMPORTANT: Create clean copies to avoid bibtexparser internal objects
+    # that can cause RecursionError with isinstance checks
     entries = {}
     for entry in bib_database.entries:
         key = entry.get('ID', '')
         if key:
-            entries[key] = entry
+            # Create a clean copy with only string values
+            # Use type() instead of isinstance() to avoid recursion issues
+            clean_entry = {}
+            for k, v in entry.items():
+                if v is None:
+                    clean_entry[k] = ''
+                elif type(v).__name__ == 'str':
+                    clean_entry[k] = v
+                elif type(v).__name__ in ('int', 'float', 'bool'):
+                    clean_entry[k] = str(v)
+                elif type(v).__name__ in ('list', 'tuple'):
+                    clean_entry[k] = ', '.join(str(x) for x in v)
+                else:
+                    # Convert any other type to string
+                    clean_entry[k] = str(v)
+            entries[key] = clean_entry
     
     return entries
 

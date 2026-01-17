@@ -2,7 +2,14 @@
 Text processing utilities for string similarity and normalization
 """
 
-from fuzzywuzzy import fuzz
+# Make fuzzywuzzy optional
+try:
+    from fuzzywuzzy import fuzz
+    HAS_FUZZYWUZZY = True
+except ImportError:
+    HAS_FUZZYWUZZY = False
+    fuzz = None
+
 import re
 import unicodedata
 from typing import List, Set
@@ -83,6 +90,13 @@ def calculate_levenshtein(text1: str, text2: str) -> float:
     if not text1 or not text2:
         return 0.0
     
+    if not HAS_FUZZYWUZZY:
+        # Fallback: simple character overlap
+        t1, t2 = text1.lower(), text2.lower()
+        common = len(set(t1) & set(t2))
+        total = len(set(t1) | set(t2))
+        return common / total if total > 0 else 0.0
+    
     return fuzz.ratio(text1.lower(), text2.lower()) / 100.0
 
 
@@ -99,6 +113,10 @@ def calculate_token_sort_ratio(text1: str, text2: str) -> float:
     """
     if not text1 or not text2:
         return 0.0
+    
+    if not HAS_FUZZYWUZZY:
+        # Fallback to Jaccard
+        return calculate_jaccard(text1, text2)
     
     return fuzz.token_sort_ratio(text1.lower(), text2.lower()) / 100.0
 

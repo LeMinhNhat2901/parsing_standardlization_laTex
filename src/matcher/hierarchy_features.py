@@ -85,7 +85,8 @@ class HierarchyFeatureExtractor:
         
         for elem_id, elem in self.elements.items():
             # Handle both string and dict elements
-            if isinstance(elem, dict):
+            # Use type() instead of isinstance() to avoid recursion issues
+            if type(elem).__name__ == 'dict':
                 content = elem.get('content', elem.get('text', ''))
             else:
                 content = str(elem)
@@ -159,7 +160,8 @@ class HierarchyFeatureExtractor:
         
         for elem_id, elem in self.elements.items():
             # Handle both string and dict elements
-            if isinstance(elem, dict):
+            # Use type() instead of isinstance() to avoid recursion issues
+            if type(elem).__name__ == 'dict':
                 content = elem.get('content', elem.get('text', ''))
             else:
                 content = str(elem)
@@ -203,7 +205,8 @@ class HierarchyFeatureExtractor:
             for parent_id in parents:
                 parent = self.elements.get(parent_id, {})
                 # Handle both string and dict elements
-                if isinstance(parent, dict):
+                # Use type() instead of isinstance() to avoid recursion issues
+                if type(parent).__name__ == 'dict':
                     parent_type = parent.get('type', '')
                     parent_title = parent.get('title', parent.get('content', '')).lower()
                 else:
@@ -277,8 +280,9 @@ class HierarchyFeatureExtractor:
         depth = 0
         current_id = elem_id
         visited = set()
+        max_depth = 100  # Prevent infinite loops
         
-        while current_id and current_id not in visited:
+        while current_id and current_id not in visited and depth < max_depth:
             visited.add(current_id)
             
             # Find parent from structure (hierarchy dict)
@@ -310,8 +314,9 @@ class HierarchyFeatureExtractor:
         parents = []
         current_id = elem_id
         visited = set()
+        max_depth = 100  # Prevent infinite loops
         
-        while current_id and current_id not in visited:
+        while current_id and current_id not in visited and len(parents) < max_depth:
             visited.add(current_id)
             
             parent_id = self._find_parent(current_id)
@@ -344,7 +349,8 @@ class HierarchyFeatureExtractor:
             # Check siblings and nearby elements
             elem = self.elements.get(elem_id, {})
             # Handle both string and dict elements
-            if isinstance(elem, dict):
+            # Use type() instead of isinstance() to avoid recursion issues
+            if type(elem).__name__ == 'dict':
                 parent_id = elem.get('parent')
             else:
                 parent_id = self._find_parent(elem_id)
@@ -358,7 +364,8 @@ class HierarchyFeatureExtractor:
             for sibling_id in siblings:
                 sibling = self.elements.get(sibling_id, {})
                 # Handle both string and dict elements
-                if isinstance(sibling, dict):
+                # Use type() instead of isinstance() to avoid recursion issues
+                if type(sibling).__name__ == 'dict':
                     sibling_type = sibling.get('type', '').lower()
                 else:
                     sibling_type = ''
@@ -382,7 +389,8 @@ class HierarchyFeatureExtractor:
                     features['in_itemize'] = 1
             
             # Also check element type itself
-            if isinstance(elem, dict):
+            # Use type() instead of isinstance() to avoid recursion issues
+            if type(elem).__name__ == 'dict':
                 elem_type = elem.get('type', '').lower()
             else:
                 elem_type = ''

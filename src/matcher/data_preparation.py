@@ -98,14 +98,24 @@ class DataPreparation:
         pairs = []
         
         # Create ALL combinations (m × n)
+        # IMPORTANT: Create shallow copies of data to avoid circular references
+        # that can cause RecursionError with isinstance checks
         for bibtex_key, bibtex_data in bibtex_entries.items():
+            # Create a safe copy of bibtex_data with only primitive values
+            safe_bibtex = self._make_safe_dict(bibtex_data)
+            safe_bibtex['_original_key'] = bibtex_key
+            
             for arxiv_id, ref_data in references.items():
+                # Create a safe copy of ref_data
+                safe_ref = self._make_safe_dict(ref_data) if ref_data else {}
+                safe_ref['_original_id'] = arxiv_id
+                
                 pair = {
                     'publication_id': publication_id,
                     'bibtex_key': bibtex_key,
-                    'bibtex_data': bibtex_data,
+                    'bibtex_data': safe_bibtex,
                     'candidate_id': arxiv_id,
-                    'candidate_data': ref_data,
+                    'candidate_data': safe_ref,
                     'label': None  # Will be filled by Labeler
                 }
                 pairs.append(pair)
@@ -131,6 +141,95 @@ class DataPreparation:
         print(f"  Imbalance ratio: 1:{imbalance_ratio:.1f}")
         
         return pairs
+    
+    def _make_safe_dict(self, d: dict, _seen: set = None) -> dict:
+        """
+        Create a safe copy of a dictionary with only primitive values.
+        This prevents RecursionError with isinstance checks in pandas.
+        
+        Args:
+            d: Input dictionary (may have nested structures)
+            _seen: Set of seen object IDs to detect circular references
+            
+        Returns:
+            Dict with only string values (nested dicts are JSON-serialized)
+        """
+        # Initialize seen set on first call
+        if _seen is None:
+            _seen = set()
+        
+        # Use type() instead of isinstance() to avoid recursion issues
+        if not d or type(d).__name__ != 'dict':
+            return {}
+        
+        # Check for circular references using object ID
+        obj_id = id(d)
+        if obj_id in _seen:
+            return {}  # Circular reference detected, return empty
+        _seen.add(obj_id)
+        
+        safe = {}
+        for k, v in d.items():
+            if v is None:
+                safe[k] = ''
+                continue
+                
+            v_type = type(v).__name__
+            
+            # Handle primitive types
+            if v_type == 'str':
+                safe[k] = v
+            elif v_type in ('int', 'float', 'bool'):
+                safe[k] = v
+            # Handle numpy types
+            elif v_type in ('int64', 'float64', 'int32', 'float32', 'int16', 'float16',
+                           'int8', 'uint8', 'uint16', 'uint32', 'uint64'):
+                safe[k] = float(v)
+            elif v_type == 'bool_':  # numpy bool
+                safe[k] = bool(v)
+            # Handle sequences
+            elif v_type in ('list', 'tuple'):
+                # Convert list to comma-separated string of primitives
+                safe_items = []
+                for item in v:
+                    item_type = type(item).__name__
+                    if item is None:
+                        continue
+                    elif item_type in ('str', 'int', 'float', 'bool'):
+                        safe_items.append(str(item))
+                    elif item_type == 'dict':
+                        # Skip nested dicts in lists to avoid recursion
+                        continue
+                    else:
+                        safe_items.append(str(item))
+                safe[k] = ', '.join(safe_items)
+            # Handle nested dicts
+            elif v_type == 'dict':
+                # Flatten nested dict or convert to string
+                try:
+                    import json
+                    # Create safe nested dict first
+                    nested_safe = self._make_safe_dict(v, _seen.copy())
+                    safe[k] = json.dumps(nested_safe) if nested_safe else ''
+                except Exception:
+                    safe[k] = str(v)[:200]  # Truncate to prevent huge strings
+            # Handle ndarray
+            elif v_type == 'ndarray':
+                try:
+                    if v.size <= 10:
+                        safe[k] = ', '.join(str(x) for x in v.flatten())
+                    else:
+                        safe[k] = str(v.shape)
+                except Exception:
+                    safe[k] = ''
+            else:
+                # For any other type, convert to string (truncated)
+                try:
+                    safe[k] = str(v)[:200]
+                except Exception:
+                    safe[k] = ''
+        
+        return safe
     
     def _extract_pub_id(self, path: str) -> str:
         """

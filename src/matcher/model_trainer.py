@@ -51,7 +51,6 @@ class ModelTrainer:
                 # Overfitting prevention
                 early_stopping_rounds=50,
                 od_type='Iter',
-                od_wait=50,
                 
                 # Performance
                 task_type='GPU' if self.use_gpu else 'CPU',
@@ -69,27 +68,30 @@ class ModelTrainer:
         
         elif self.model_type == 'ranker':
             self.model = CatBoostRanker(
-                # Core parameters
-                iterations=500,
-                learning_rate=0.03,
-                depth=6,
+                # Core parameters - OPTIMIZED for ranking
+                iterations=800,           # More iterations for better convergence
+                learning_rate=0.05,       # Slightly higher LR works well with ranking
+                depth=8,                  # Deeper trees for complex ranking patterns
                 
-                # Loss function - OPTIMIZED FOR RANKING
+                # Loss function - YetiRank is best for NDCG optimization
                 loss_function='YetiRank',
                 
-                # Evaluation metrics
-                eval_metric='NDCG:top=5',
-                custom_metric=['MRR:top=5', 'PrecisionAt:top=5', 'RecallAt:top=5'],
+                # Evaluation metrics - use NDCG without colon format for compatibility
+                eval_metric='NDCG',
+                custom_metric=['MAP', 'PrecisionAt:top=5', 'RecallAt:top=5'],
                 
-                # Regularization
-                l2_leaf_reg=3.0,
-                random_strength=1.0,
-                bagging_temperature=1.0,
+                # Regularization - tuned for ranking
+                l2_leaf_reg=5.0,          # Slightly higher regularization
+                random_strength=0.5,      # Reduced randomness
+                bagging_temperature=0.8,  # Moderate bagging
                 
                 # Overfitting prevention
-                early_stopping_rounds=50,
+                early_stopping_rounds=100,  # More patience for ranking
                 od_type='Iter',
-                od_wait=50,
+                
+                # Tree structure
+                min_data_in_leaf=5,       # Prevent overfitting on small groups
+                grow_policy='SymmetricTree',
                 
                 # Performance
                 task_type='GPU' if self.use_gpu else 'CPU',
@@ -98,7 +100,7 @@ class ModelTrainer:
                 
                 # Reproducibility
                 random_seed=42,
-                verbose=50,
+                verbose=100,              # Less frequent logging
                 
                 # Other
                 use_best_model=True,
@@ -120,17 +122,27 @@ class ModelTrainer:
         Returns:
             X, y, cat_features
         """
-        X = features_df
+        X = features_df.copy()
         y = labels
         
-        # Identify categorical features
+        # IMPORTANT: Only treat actual string/object columns as categorical
+        # Do NOT treat binary numeric (0/1) features as categorical!
+        # This was causing CatBoost error: "bad object for id: 0.0"
         cat_features = []
         for col in X.columns:
-            if X[col].dtype == 'object' or X[col].dtype == 'bool':
+            if X[col].dtype == 'object':
                 cat_features.append(col)
-            # Also check if numeric column has few unique values (likely categorical)
-            elif X[col].nunique() < 10 and col not in ['year_diff', 'citation_count']:
-                cat_features.append(col)
+        
+        # Convert categorical features to string (required by CatBoost)
+        for col in cat_features:
+            X[col] = X[col].fillna('missing')
+            X[col] = X[col].astype(str)
+        
+        # Ensure no NaN in numeric columns
+        for col in X.columns:
+            if col not in cat_features:
+                # Fill NaN with 0 for numeric columns
+                X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0)
         
         return X, y, cat_features
     
@@ -148,7 +160,7 @@ class ModelTrainer:
         Returns:
             Pool object for CatBoost ranker
         """
-        X = features_df
+        X = features_df.copy()
         y = labels
         
         # Create group IDs (one per BibTeX entry)
@@ -163,19 +175,30 @@ class ModelTrainer:
                 current_bibtex = bibtex_key
             group_ids.append(current_group)
         
-        # Identify categorical features
+        # IMPORTANT: Only treat actual string/object columns as categorical
+        # Do NOT treat binary numeric (0/1) features as categorical!
+        # This was causing CatBoost error: "bad object for id: 0.0"
         cat_features = []
         for col in X.columns:
-            if X[col].dtype == 'object' or X[col].dtype == 'bool':
+            if X[col].dtype == 'object':
                 cat_features.append(col)
-            elif X[col].nunique() < 10 and col not in ['year_diff', 'citation_count']:
-                cat_features.append(col)
+        
+        # Convert categorical features to string (required by CatBoost)
+        for col in cat_features:
+            X[col] = X[col].fillna('missing')
+            X[col] = X[col].astype(str)
+        
+        # Ensure no NaN in numeric columns
+        for col in X.columns:
+            if col not in cat_features:
+                # Fill NaN with 0 for numeric columns
+                X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0)
         
         return Pool(
             data=X,
             label=y,
             group_id=group_ids,
-            cat_features=cat_features
+            cat_features=cat_features if cat_features else None  # None if no cat features
         )
     
     def train(self, train_pairs, train_features, train_labels,
@@ -201,7 +224,12 @@ class ModelTrainer:
         pos_count = sum(train_labels)
         neg_count = len(train_labels) - pos_count
         print(f"Class balance: {pos_count} positive / {neg_count} negative")
-        print(f"Imbalance ratio: 1:{neg_count/pos_count:.1f}")
+        
+        if pos_count > 0:
+            print(f"Imbalance ratio: 1:{neg_count/pos_count:.1f}")
+        else:
+            print("WARNING: No positive samples in training data!")
+            return  # Cannot train without positive samples
         
         if self.model_type == 'classifier':
             # Prepare data
@@ -330,7 +358,7 @@ class ModelTrainer:
                             depth=depth,
                             l2_leaf_reg=l2,
                             loss_function='YetiRank',
-                            eval_metric='NDCG:top=5',
+                            eval_metric='NDCG',  # Use standard NDCG for compatibility
                             early_stopping_rounds=30,
                             random_seed=42,
                             verbose=False
@@ -349,7 +377,10 @@ class ModelTrainer:
                             verbose=False
                         )
                         
-                        score = model.get_best_score()['validation']['NDCG:top=5']
+                        # Try to get NDCG score with fallback
+                        val_scores = model.get_best_score().get('validation', {})
+                        score = val_scores.get('NDCG') or val_scores.get('NDCG:top=5') or \
+                                next((v for k, v in val_scores.items() if 'NDCG' in k), 0.0)
                     
                     print(f"  Score: {score:.4f}")
                     
@@ -415,29 +446,33 @@ class ModelTrainer:
         # Get predictions
         scores = self.predict(features_df)
         
-        # Create (candidate_id, score) tuples
+        # Create (candidate_id, score, candidate_data) tuples
+        # IMPORTANT: Store only necessary data to avoid RecursionError
         candidate_scores = []
         for i, pair in enumerate(pairs):
             if pair['bibtex_key'] == bibtex_key:
+                # Extract only needed data, avoid storing entire pair
                 candidate_scores.append((
                     pair['candidate_id'],
                     scores[i],
-                    pair  # Store pair for post-processing
+                    pair.get('candidate_data', {})  # Only store candidate_data
                 ))
         
         # Post-processing (if enabled)
         if post_process:
+            # Get bibtex_data safely
+            bibtex_data = pairs[0].get('bibtex_data', {}) if pairs else {}
             candidate_scores = self._post_process(
                 bibtex_key, 
                 candidate_scores,
-                pairs[0]['bibtex_data']  # Get BibTeX data
+                bibtex_data
             )
         
         # Sort by score descending
         candidate_scores.sort(key=lambda x: x[1], reverse=True)
         
         # Return top-k candidate IDs
-        return [cand_id for cand_id, score, pair in candidate_scores[:k]]
+        return [cand_id for cand_id, score, _ in candidate_scores[:k]]
     
     def _post_process(self, bibtex_key, candidate_scores, bibtex_data):
         """
@@ -451,7 +486,7 @@ class ModelTrainer:
         
         Args:
             bibtex_key: BibTeX entry key
-            candidate_scores: List of (candidate_id, score, pair) tuples
+            candidate_scores: List of (candidate_id, score, candidate_data) tuples
             bibtex_data: BibTeX entry data
         
         Returns:
@@ -459,9 +494,8 @@ class ModelTrainer:
         """
         processed = []
         
-        for cand_id, score, pair in candidate_scores:
+        for cand_id, score, candidate_data in candidate_scores:
             new_score = score
-            candidate_data = pair['candidate_data']
             
             # Strategy 1: Exact title match
             if self._exact_title_match(bibtex_data, candidate_data):
@@ -480,7 +514,7 @@ class ModelTrainer:
             if self._has_arxiv_id(bibtex_data, cand_id):
                 new_score = 1.0  # Force to top
             
-            processed.append((cand_id, new_score, pair))
+            processed.append((cand_id, new_score, candidate_data))
         
         return processed
     
@@ -496,14 +530,18 @@ class ModelTrainer:
         
         # Extract year from BibTeX
         year1 = bibtex_data.get('year', '')
-        if isinstance(year1, str):
+        # Use type() instead of isinstance() to avoid recursion issues
+        if type(year1).__name__ == 'str':
             match = re.search(r'\d{4}', year1)
             year1 = int(match.group()) if match else 0
         
         # Extract year from candidate
         year2_str = candidate_data.get('submission_date', '')
         if year2_str:
-            year2 = int(year2_str[:4])
+            try:
+                year2 = int(str(year2_str)[:4])
+            except (ValueError, TypeError):
+                year2 = 0
         else:
             year2 = 0
         
@@ -550,15 +588,41 @@ class ModelTrainer:
         
         return False
     
-    def get_feature_importance(self):
+    def get_feature_importance(self, train_pool=None):
         """
         Get feature importance
+        
+        Args:
+            train_pool: Optional training Pool for LossFunctionChange calculation.
+                        If not provided, uses PredictionValuesChange (faster, no data needed).
         
         Returns:
             DataFrame with feature names and importance scores
         """
         feature_names = self.model.feature_names_
-        importance = self.model.get_feature_importance()
+        
+        # Use PredictionValuesChange by default (doesn't require training data)
+        # LossFunctionChange is more accurate but requires the training dataset
+        try:
+            if train_pool is not None:
+                importance = self.model.get_feature_importance(
+                    data=train_pool, 
+                    type='LossFunctionChange'
+                )
+            else:
+                # PredictionValuesChange doesn't require training data
+                importance = self.model.get_feature_importance(
+                    type='PredictionValuesChange'
+                )
+        except Exception as e:
+            print(f"Warning: Could not get feature importance with primary method: {e}")
+            try:
+                # Fallback to basic feature importance
+                importance = self.model.get_feature_importance(type='FeatureImportance')
+            except Exception:
+                # Last resort: return zeros
+                print("Warning: Using zero importance as fallback")
+                importance = [0.0] * len(feature_names)
         
         df = pd.DataFrame({
             'feature': feature_names,
@@ -571,15 +635,26 @@ class ModelTrainer:
     
     def save_model(self, path):
         """Save trained model"""
+        # Check if model has been trained
+        if not hasattr(self.model, 'is_fitted') or not self.model.is_fitted():
+            print("WARNING: Model not trained, skipping save.")
+            return
+            
         self.model.save_model(path)
         print(f"Model saved to {path}")
         
         # Also save metadata
+        try:
+            feature_importance = self.get_feature_importance().to_dict()
+        except Exception as e:
+            print(f"WARNING: Could not get feature importance: {e}")
+            feature_importance = {}
+            
         metadata = {
             'model_type': self.model_type,
             'best_params': self.best_params,
             'training_history': self.training_history,
-            'feature_importance': self.get_feature_importance().to_dict()
+            'feature_importance': feature_importance
         }
         
         metadata_path = path.replace('.cbm', '_metadata.json')
@@ -623,33 +698,87 @@ class ModelTrainer:
         
         fig, axes = plt.subplots(1, 2, figsize=(15, 5))
         
-        # Plot 1: Training vs validation loss
-        if self.model_type == 'classifier':
-            metric = 'Logloss'
-        else:
-            metric = 'NDCG:top=5'
+        # Plot 1: Training vs validation metric
+        metric_plotted = False
         
         if 'learn' in self.training_history:
-            train_metric = self.training_history['learn'][metric]
-            val_metric = self.training_history['validation'][metric]
+            available_metrics = list(self.training_history['learn'].keys())
+            print(f"Available metrics in training history: {available_metrics}")
             
-            axes[0].plot(train_metric, label='Train')
-            axes[0].plot(val_metric, label='Validation')
-            axes[0].set_xlabel('Iteration')
-            axes[0].set_ylabel(metric)
-            axes[0].set_title(f'Training History: {metric}')
-            axes[0].legend()
-            axes[0].grid(True, alpha=0.3)
+            # Define metric priority based on model type
+            if self.model_type == 'classifier':
+                metric_priority = ['Logloss', 'AUC', 'Accuracy']
+            else:
+                # For ranker, try multiple NDCG variations that CatBoost might use
+                metric_priority = [
+                    'NDCG',              # Standard NDCG
+                    'NDCG:top=5',        # NDCG with top parameter
+                    'NDCG:type=Base',    # Base type NDCG
+                    'NDCG:type=Exp',     # Exponential type NDCG
+                    'PairLogitPairwise', # Alternative ranking metric
+                    'YetiRank',          # Loss function as metric
+                ]
+            
+            # Find the first available metric from priority list
+            metric = None
+            for m in metric_priority:
+                if m in available_metrics:
+                    metric = m
+                    break
+            
+            # If no priority metric found, try to find any NDCG variant
+            if metric is None:
+                for m in available_metrics:
+                    if 'NDCG' in m.upper():
+                        metric = m
+                        break
+            
+            # Last resort: use the first available metric
+            if metric is None and available_metrics:
+                metric = available_metrics[0]
+            
+            if metric:
+                try:
+                    train_metric = self.training_history['learn'][metric]
+                    val_metric = self.training_history.get('validation', {}).get(metric, [])
+                    
+                    axes[0].plot(train_metric, label='Train', color='blue')
+                    if val_metric:
+                        axes[0].plot(val_metric, label='Validation', color='orange')
+                    axes[0].set_xlabel('Iteration')
+                    axes[0].set_ylabel(metric)
+                    axes[0].set_title(f'Training History: {metric}')
+                    axes[0].legend()
+                    axes[0].grid(True, alpha=0.3)
+                    metric_plotted = True
+                except Exception as e:
+                    print(f"Warning: Could not plot metric {metric}: {e}")
+        
+        if not metric_plotted:
+            axes[0].text(0.5, 0.5, 'No training metrics available', 
+                        ha='center', va='center', transform=axes[0].transAxes)
+            axes[0].set_title('Training History (No Data)')
         
         # Plot 2: Feature importance (top 20)
-        feat_importance = self.get_feature_importance().head(20)
-        
-        axes[1].barh(range(len(feat_importance)), feat_importance['importance'])
-        axes[1].set_yticks(range(len(feat_importance)))
-        axes[1].set_yticklabels(feat_importance['feature'])
-        axes[1].set_xlabel('Importance')
-        axes[1].set_title('Top 20 Feature Importance')
-        axes[1].grid(True, alpha=0.3, axis='x')
+        try:
+            feat_importance = self.get_feature_importance().head(20)
+            
+            if len(feat_importance) > 0:
+                axes[1].barh(range(len(feat_importance)), feat_importance['importance'])
+                axes[1].set_yticks(range(len(feat_importance)))
+                axes[1].set_yticklabels(feat_importance['feature'])
+                axes[1].set_xlabel('Importance')
+                axes[1].set_title('Top 20 Feature Importance')
+                axes[1].grid(True, alpha=0.3, axis='x')
+            else:
+                axes[1].text(0.5, 0.5, 'No feature importance available',
+                            ha='center', va='center', transform=axes[1].transAxes)
+                axes[1].set_title('Feature Importance (No Data)')
+        except Exception as e:
+            print(f"Warning: Could not get feature importance: {e}")
+            axes[1].text(0.5, 0.5, f'Error: {str(e)[:50]}',
+                        ha='center', va='center', transform=axes[1].transAxes)
+            axes[1].set_title('Feature Importance (Error)')
         
         plt.tight_layout()
         

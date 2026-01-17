@@ -11,11 +11,16 @@ As per requirement 2.1.3:
 """
 
 import re
+import sys
 from typing import Dict, List, Tuple, Set, Optional
 from pathlib import Path
+
+# CRITICAL: Increase recursion limit before any processing
+if sys.getrecursionlimit() < 10000:
+    sys.setrecursionlimit(10000)
+
 from fuzzywuzzy import fuzz
 
-import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
 
@@ -165,7 +170,8 @@ class Deduplicator:
         """Calculate author overlap percentage"""
         # Parse author strings
         def parse_authors(auth_str):
-            if isinstance(auth_str, list):
+            # Use type() instead of isinstance() to avoid recursion issues
+            if type(auth_str).__name__ == 'list':
                 return set(a.lower().strip() for a in auth_str)
             # Split by 'and' or comma
             authors = re.split(r'\s+and\s+|,\s*', str(auth_str))
@@ -313,8 +319,9 @@ class Deduplicator:
             values = []
             for key in duplicate_group:
                 val = entries[key].get(field)
-                if val and (isinstance(val, str) and val.strip() or 
-                           isinstance(val, list) and len(val) > 0):
+                # Use type() instead of isinstance() to avoid recursion issues
+                if val and (type(val).__name__ == 'str' and val.strip() or 
+                           type(val).__name__ == 'list' and len(val) > 0):
                     values.append(val)
             
             if not values:
@@ -325,7 +332,8 @@ class Deduplicator:
                 # For authors: union all unique authors
                 all_authors = []
                 for v in values:
-                    if isinstance(v, list):
+                    # Use type() instead of isinstance() to avoid recursion issues
+                    if type(v).__name__ == 'list':
                         all_authors.extend(v)
                     else:
                         # Split by 'and'
@@ -356,9 +364,25 @@ class Deduplicator:
                 # For venue: prefer non-empty
                 merged[field] = values[0]
             
-            elif field not in ['ID', 'ENTRYTYPE']:
+            elif field == 'ENTRYTYPE':
+                # For ENTRYTYPE: prefer more specific types over 'misc'
+                type_priority = {'article': 3, 'inproceedings': 3, 'book': 2, 'incollection': 2, 'misc': 1}
+                best_type = 'misc'
+                best_priority = 0
+                for v in values:
+                    priority = type_priority.get(str(v).lower(), 1)
+                    if priority > best_priority:
+                        best_priority = priority
+                        best_type = v
+                merged[field] = best_type
+            
+            elif field not in ['ID']:
                 # For other fields: keep first non-empty
                 merged[field] = values[0]
+        
+        # CRITICAL: Ensure ENTRYTYPE is always present
+        if 'ENTRYTYPE' not in merged:
+            merged['ENTRYTYPE'] = 'misc'
         
         return merged
     
@@ -380,7 +404,8 @@ class Deduplicator:
         
         for elem_id, content in elements_dict.items():
             # Normalize content for comparison
-            if isinstance(content, dict):
+            # Use type() instead of isinstance() to avoid recursion issues
+            if type(content).__name__ == 'dict':
                 # For figures/tables, use caption
                 normalized = self._normalize_for_comparison(content.get('caption', ''))
             else:

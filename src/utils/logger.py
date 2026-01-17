@@ -94,10 +94,11 @@ class ProgressLogger:
             logger: Logger instance (optional, uses default if not provided)
         """
         # Handle both old and new constructor signatures
-        if isinstance(total_steps, logging.Logger):
+        # Use type() instead of isinstance() to avoid recursion issues
+        if type(total_steps).__name__ == 'Logger':
             # Old signature: ProgressLogger(logger, total, desc)
             self.logger = total_steps
-            self.total = desc if isinstance(desc, int) else 0
+            self.total = desc if type(desc).__name__ == 'int' else 0
             self.desc = "Processing"
         else:
             # New signature: ProgressLogger(total_steps, desc, logger)
@@ -216,7 +217,8 @@ def log_statistics(logger, stats_dict, title="Statistics"):
     logger.info(f"{'='*50}")
     
     for key, value in stats_dict.items():
-        if isinstance(value, float):
+        # Use type() instead of isinstance() to avoid recursion issues
+        if type(value).__name__ == 'float':
             logger.info(f"  {key}: {value:.4f}")
         else:
             logger.info(f"  {key}: {value}")

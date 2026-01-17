@@ -19,7 +19,17 @@ import os
 import sys
 from pathlib import Path
 
-# Add src to path
+# CRITICAL: Increase recursion limit BEFORE any library imports
+# This prevents RecursionError with complex LaTeX files
+sys.setrecursionlimit(10000)
+
+# Disable pyparsing packrat to prevent recursion issues with deeply nested LaTeX
+try:
+    import pyparsing
+    pyparsing.ParserElement.disablePackrat()
+except (ImportError, AttributeError):
+    pass  # pyparsing not installed or doesn't have this method
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from parser.file_gatherer import FileGatherer
@@ -27,79 +37,21 @@ from parser.latex_cleaner import LaTeXCleaner
 from parser.reference_extractor import ReferenceExtractor
 from parser.hierarchy_builder import HierarchyBuilder
 from parser.deduplicator import Deduplicator
-from utils.file_io import save_json, load_json, save_bibtex
-from utils.logger import setup_logger, ProgressLogger
-
-import config
+from utils.file_io import save_json, save_bibtex
+from utils.logger import setup_logger
 
 
-def parse_arguments():
-    """Parse command line arguments"""
-    parser = argparse.ArgumentParser(
-        description='Parse LaTeX source files into hierarchical structure',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-    # Parse a single publication
-    python main_parser.py --input-dir ./data/2304.12345 --output-dir ./output
-    
-    # Parse with explicit arXiv ID
-    python main_parser.py --input-dir ./data/2304.12345 --arxiv-id 2304.12345
-    
-    # Process multiple publications
-    python main_parser.py --input-dir ./data --batch --output-dir ./output
-        """
-    )
-    
-    parser.add_argument('--input-dir', '-i', required=True,
-                       help='Input directory containing LaTeX source files')
-    parser.add_argument('--output-dir', '-o', default=None,
-                       help='Output directory (default: from config or same as input)')
-    parser.add_argument('--arxiv-id', 
-                       help='ArXiv ID (extracted from path if not provided)')
-    parser.add_argument('--batch', action='store_true',
-                       help='Process all subdirectories as separate publications')
-    parser.add_argument('--clean-only', action='store_true',
-                       help='Only clean LaTeX (skip hierarchy building)')
-    parser.add_argument('--refs-only', action='store_true',
-                       help='Only extract references')
-    parser.add_argument('--verbose', '-v', action='store_true',
-                       help='Enable verbose logging')
-    parser.add_argument('--no-dedup', action='store_true',
-                       help='Skip deduplication step')
-    
-    return parser.parse_args()
-
-
-def extract_arxiv_id(input_dir: str) -> str:
-    """Extract arXiv ID from directory path"""
-    # Try to extract from directory name
-    dir_name = Path(input_dir).name
-    
-    # Common patterns: 2304.12345, 1606.03490, etc.
-    import re
-    pattern = r'\d{4}\.\d{4,5}'
-    match = re.search(pattern, dir_name)
-    
-    if match:
-        return match.group()
-    
-    return dir_name  # Use directory name as fallback
-
-
-def process_publication(input_dir: str, output_dir: str, arxiv_id: str,
-                       logger, args) -> dict:
+def parse_publication(input_dir: str, output_dir: str, arxiv_id: str, logger, args):
     """
-    Process a single publication
+    Process a single publication with COMPLETE reference extraction
     
     Returns:
         Dict with statistics and output paths
     """
     logger.info(f"Processing publication: {arxiv_id}")
-    logger.info(f"Input directory: {input_dir}")
-    logger.info(f"Output directory: {output_dir}")
+    logger.info(f"Input: {input_dir}")
+    logger.info(f"Output: {output_dir}")
     
-    # Create output directory
     os.makedirs(output_dir, exist_ok=True)
     
     stats = {
@@ -113,179 +65,221 @@ def process_publication(input_dir: str, output_dir: str, arxiv_id: str,
         'deduplicated_refs': 0
     }
     
-    progress = ProgressLogger(6, "Parsing Pipeline")
+    # ========================================
+    # CRITICAL: Copy metadata.json and references.json
+    # ========================================
+    import shutil
+    for filename in ['metadata.json', 'references.json']:
+        src = os.path.join(input_dir, filename)
+        dst = os.path.join(output_dir, filename)
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+            logger.info(f"Copied {filename}")
+        else:
+            logger.warning(f"Warning: {filename} not found")
     
     # ========================================
     # Step 1: Gather files
     # ========================================
-    progress.start_step(1, "Gathering files")
+    logger.info("\n=== Step 1: Gathering files ===")
     
     gatherer = FileGatherer(input_dir)
     version_files = gatherer.get_all_version_files()
     
     if not version_files:
-        logger.warning(f"No LaTeX files found in {input_dir}")
+        logger.warning(f"No LaTeX files found")
+        # Save empty outputs
+        save_json(os.path.join(output_dir, 'hierarchy.json'), {'elements': {}, 'hierarchy': {}})
+        
+        # IMPORTANT: Still try to extract references even without LaTeX
+        ref_extractor = ReferenceExtractor()
+        all_refs = ref_extractor.extract_all_from_directory(Path(input_dir))
+        ref_extractor.save_to_bib_file(Path(output_dir) / 'refs.bib')
+        
+        save_json(os.path.join(output_dir, 'parsing_stats.json'), stats)
         return stats
     
     stats['versions'] = len(version_files)
     stats['files_found'] = sum(len(files) for files in version_files.values())
     
     logger.info(f"Found {stats['files_found']} files across {stats['versions']} version(s)")
-    progress.complete_step(1)
     
     # ========================================
     # Step 2: Build hierarchy
     # ========================================
-    progress.start_step(2, "Building hierarchy")
+    logger.info("\n=== Step 2: Building hierarchy ===")
     
     builder = HierarchyBuilder(arxiv_id)
     cleaner = LaTeXCleaner()
     
     for version, files in version_files.items():
-        logger.info(f"Processing version: {version} ({len(files)} files)")
+        logger.info(f"Processing version {version}: {len(files)} files")
         
-        # Combine all files for this version
+        # Combine files
         combined_content = gatherer.combine_files(files)
         
-        # Pre-clean content (normalize whitespace, etc.)
-        cleaned_content = cleaner.clean(combined_content)
+        # Light clean (keep structure for parsing)
+        light_cleaned = cleaner.remove_comments(combined_content)
         
-        # Parse into hierarchy
-        builder.parse_latex(cleaned_content, version)
+        # Parse hierarchy
+        builder.parse_latex(light_cleaned, version)
     
     stats['elements'] = len(builder.get_elements())
-    logger.info(f"Built hierarchy with {stats['elements']} elements")
-    progress.complete_step(2)
+    logger.info(f"Built hierarchy: {stats['elements']} elements")
     
     # ========================================
     # Step 3: Clean content
     # ========================================
-    progress.start_step(3, "Cleaning content")
+    logger.info("\n=== Step 3: Cleaning content ===")
     
-    # Clean all element content
     elements = builder.get_elements()
     for elem_id, elem in elements.items():
-        # Elements can be strings or dicts
-        if isinstance(elem, dict):
+        # Use type() instead of isinstance() to avoid recursion issues
+        if type(elem).__name__ == 'dict':
             if 'content' in elem:
                 elem['content'] = cleaner.clean(elem['content'])
             if 'text' in elem:
                 elem['text'] = cleaner.clean(elem['text'])
-        elif isinstance(elem, str):
-            # Element is a string - clean it directly
+        elif type(elem).__name__ == 'str':
             elements[elem_id] = cleaner.clean(elem)
     
-    logger.info("Cleaned all element content")
-    progress.complete_step(3)
+    logger.info("Cleaned all elements")
     
     # ========================================
-    # Step 4: Extract references
+    # Step 4: Extract references (CRITICAL)
     # ========================================
-    progress.start_step(4, "Extracting references")
+    logger.info("\n=== Step 4: Extracting references ===")
     
     ref_extractor = ReferenceExtractor()
     
-    # Get all latex files content
-    all_content = ""
-    for files in version_files.values():
-        all_content += gatherer.combine_files(files) + "\n"
+    # CRITICAL: Extract from ALL version directories
+    all_refs = {}
     
-    # Extract bibitem entries
-    bibtex_entries = ref_extractor.extract_bibitems(all_content)
+    for version, files in version_files.items():
+        # Get directory of first file
+        if files:
+            version_dir = files[0].parent
+            logger.info(f"Extracting references from version {version}: {version_dir}")
+            
+            # Extract from this version directory
+            version_refs = ref_extractor.extract_all_from_directory(version_dir)
+            all_refs.update(version_refs)
     
-    # Try to load existing .bib files
-    for files in version_files.values():
-        for file in files:
-            # file is a Path object, check suffix
-            if isinstance(file, Path) and file.suffix == '.bib':
-                file_entries = ref_extractor.parse_bib_file(str(file))
-                bibtex_entries.update(file_entries)
-            elif isinstance(file, str) and file.endswith('.bib'):
-                file_entries = ref_extractor.parse_bib_file(file)
-                bibtex_entries.update(file_entries)
+    # Also check root input directory
+    logger.info(f"Extracting references from root: {input_dir}")
+    root_refs = ref_extractor.extract_all_from_directory(Path(input_dir))
+    all_refs.update(root_refs)
     
-    stats['references'] = len(bibtex_entries)
+    # Update extractor's entries
+    ref_extractor.bibtex_entries = all_refs
+    
+    stats['references'] = len(all_refs)
     logger.info(f"Extracted {stats['references']} references")
-    progress.complete_step(4)
+    
+    # DEBUG: Log reference count for verification
+    logger.info(f"📊 References after Step 4: {len(all_refs)} entries")
+    
+    if stats['references'] == 0:
+        logger.warning("⚠️  WARNING: No references found! Check:")
+        logger.warning("  - Are there .bib files in the directory?")
+        logger.warning("  - Are there \\bibitem entries in .tex files?")
     
     # ========================================
     # Step 5: Deduplicate
     # ========================================
-    if not args.no_dedup:
-        progress.start_step(5, "Deduplicating")
+    refs_before_dedup = len(all_refs)
+    if not args.no_dedup and all_refs:
+        logger.info("\n=== Step 5: Deduplicating ===")
+        logger.info(f"   References before deduplication: {refs_before_dedup}")
         
         deduper = Deduplicator()
         
-        # 5a. Deduplicate references (with citation renaming)
+        # Get all latex files
         all_latex_files = []
         for files in version_files.values():
             all_latex_files.extend(files)
         
+        # Deduplicate references
         deduplicated_refs = deduper.deduplicate_references(
-            bibtex_entries,
+            all_refs,
             all_latex_files
         )
         
-        # 5b. Deduplicate content across versions
-        # Build elements_dict: handle both string and dict elements
-        elements_dict = {}
-        for elem_id, elem in elements.items():
-            if isinstance(elem, dict):
-                # Dict element - extract content/text
-                content = elem.get('content', elem.get('text', ''))
-            else:
-                # String element - use directly
-                content = str(elem)
-            elements_dict[elem_id] = content
-        
-        deduped_elements, id_mapping = deduper.deduplicate_content(elements_dict)
-        
         stats['deduplicated_refs'] = len(deduplicated_refs)
-        bibtex_entries = deduplicated_refs
+        
+        # SAFETY CHECK: Ensure deduplication didn't remove too many references
+        if len(deduplicated_refs) == 0 and refs_before_dedup > 0:
+            logger.warning(f"⚠️  WARNING: Deduplication removed ALL references! Keeping original {refs_before_dedup} refs.")
+            # Keep original references if deduplication fails
+            stats['deduplicated_refs'] = refs_before_dedup
+        else:
+            all_refs = deduplicated_refs
+            logger.info(f"   References after deduplication: {len(all_refs)}")
         
         rename_map = deduper.get_rename_map()
         if rename_map:
             logger.info(f"Renamed {len(rename_map)} duplicate citations")
         
-        progress.complete_step(5)
+        # Deduplicate content
+        elements_dict = {}
+        for elem_id, elem in elements.items():
+            # Use type() instead of isinstance() to avoid recursion issues
+            if type(elem).__name__ == 'dict':
+                content = elem.get('content', elem.get('text', ''))
+            else:
+                content = str(elem)
+            elements_dict[elem_id] = content
+        
+        deduped_elements, id_mapping = deduper.deduplicate_content(elements_dict)
+        
+        builder.elements = deduped_elements
+        
+        # Update hierarchy with canonical IDs
+        updated_hierarchy = builder.get_hierarchy()
+        for version, mappings in updated_hierarchy.items():
+            new_mappings = {}
+            for child_id, parent_id in mappings.items():
+                canonical_child = id_mapping.get(child_id, child_id)
+                canonical_parent = id_mapping.get(parent_id, parent_id)
+                
+                if canonical_child in deduped_elements:
+                    new_mappings[canonical_child] = canonical_parent
+            
+            updated_hierarchy[version] = new_mappings
+        
+        builder.hierarchy = updated_hierarchy
+        
+        logger.info(f"Deduplicated: {len(elements_dict)} → {len(deduped_elements)} elements")
     else:
-        progress.skip_step(5, "Deduplication (skipped)")
+        if not all_refs:
+            logger.warning("Skipping deduplication (no references)")
     
     # ========================================
     # Step 6: Save outputs
     # ========================================
-    progress.start_step(6, "Saving outputs")
+    logger.info("\n=== Step 6: Saving outputs ===")
     
     # Save hierarchy.json
     hierarchy_path = os.path.join(output_dir, 'hierarchy.json')
     hierarchy_data = builder.get_hierarchy_json()
     save_json(hierarchy_path, hierarchy_data)
-    logger.info(f"Saved hierarchy to {hierarchy_path}")
+    logger.info(f"Saved hierarchy: {hierarchy_path}")
     
-    # Save refs.bib
+    # Save refs.bib (CRITICAL)
     refs_path = os.path.join(output_dir, 'refs.bib')
-    save_bibtex(refs_path, bibtex_entries)
-    logger.info(f"Saved {len(bibtex_entries)} references to {refs_path}")
-    
-    # Copy metadata.json and references.json from input (Lab 1 data)
-    # These files are required by the matcher but come from Lab 1 crawling
-    import shutil
-    for filename in ['metadata.json', 'references.json']:
-        src_path = os.path.join(input_dir, filename)
-        dst_path = os.path.join(output_dir, filename)
-        if os.path.exists(src_path):
-            shutil.copy2(src_path, dst_path)
-            logger.info(f"Copied {filename} from input directory")
-        else:
-            logger.warning(f"Warning: {filename} not found in input directory - required for matching!")
+    if all_refs:
+        save_bibtex(refs_path, all_refs)
+        logger.info(f"✅ Saved {len(all_refs)} references to {refs_path}")
+    else:
+        # Create empty file
+        Path(refs_path).write_text("", encoding='utf-8')
+        logger.warning(f"⚠️  Created empty refs.bib (no references found)")
     
     # Save statistics
     stats_path = os.path.join(output_dir, 'parsing_stats.json')
     save_json(stats_path, stats)
     
-    progress.complete_step(6)
-    
-    logger.info(f"✅ Parsing complete for {arxiv_id}")
+    logger.info(f"\n✅ Parsing complete for {arxiv_id}")
     logger.info(f"   Elements: {stats['elements']}")
     logger.info(f"   References: {stats['references']}")
     
@@ -294,7 +288,22 @@ def process_publication(input_dir: str, output_dir: str, arxiv_id: str,
 
 def main():
     """Main entry point"""
-    args = parse_arguments()
+    parser = argparse.ArgumentParser(description='Parse LaTeX with reference extraction')
+    
+    parser.add_argument('--input-dir', '-i', required=True,
+                       help='Input directory')
+    parser.add_argument('--output-dir', '-o', default=None,
+                       help='Output directory')
+    parser.add_argument('--arxiv-id', 
+                       help='ArXiv ID')
+    parser.add_argument('--batch', action='store_true',
+                       help='Process all subdirectories')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                       help='Verbose logging')
+    parser.add_argument('--no-dedup', action='store_true',
+                       help='Skip deduplication')
+    
+    args = parser.parse_args()
     
     # Setup logging
     log_level = 'DEBUG' if args.verbose else 'INFO'
@@ -303,8 +312,6 @@ def main():
     # Determine output directory
     if args.output_dir:
         output_base = args.output_dir
-    elif hasattr(config, 'OUTPUT_DIR') and config.OUTPUT_DIR:
-        output_base = config.OUTPUT_DIR
     else:
         output_base = args.input_dir
     
@@ -317,33 +324,36 @@ def main():
             if not subdir.is_dir():
                 continue
             
+            # Extract arXiv ID from directory name
             arxiv_id = extract_arxiv_id(str(subdir))
             output_dir = os.path.join(output_base, arxiv_id)
             
             try:
-                stats = process_publication(
+                stats = parse_publication(
                     str(subdir), output_dir, arxiv_id, logger, args
                 )
                 all_stats.append(stats)
             except Exception as e:
                 logger.error(f"Error processing {arxiv_id}: {e}")
+                import traceback
+                traceback.print_exc()
                 continue
         
-        # Save overall statistics
+        # Save summary
         summary_path = os.path.join(output_base, 'parsing_summary.json')
         save_json(summary_path, {
             'total_publications': len(all_stats),
             'publications': all_stats
         })
         
-        logger.info(f"✅ Batch processing complete: {len(all_stats)} publications")
+        logger.info(f"\n✅ Batch complete: {len(all_stats)} publications")
     
     else:
-        # Process single publication
+        # Single publication
         arxiv_id = args.arxiv_id or extract_arxiv_id(args.input_dir)
         output_dir = os.path.join(output_base, arxiv_id) if output_base != args.input_dir else output_base
         
-        stats = process_publication(
+        stats = parse_publication(
             args.input_dir, output_dir, arxiv_id, logger, args
         )
         
@@ -357,6 +367,18 @@ def main():
         print(f"References:  {stats['references']}")
         print(f"{'='*60}")
 
+def extract_arxiv_id(input_dir: str) -> str:
+    """Extract arXiv ID from directory path"""
+    dir_name = Path(input_dir).name
+    
+    import re
+    pattern = r'\d{4}\.\d{4,5}'
+    match = re.search(pattern, dir_name)
+    
+    if match:
+        return match.group()
+    
+    return dir_name
 
 if __name__ == '__main__':
     main()

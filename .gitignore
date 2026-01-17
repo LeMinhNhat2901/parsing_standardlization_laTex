@@ -147,12 +147,16 @@ venv.bak/
 # Project-specific: LaTeX Parsing & Matching
 # Output directories
 output/
+output_23120067/
 results/
 processed_data/
 data/raw/
 data/processed/
 downloads/
 arxiv_data/
+logs/
+logs_23120067/
+models_23120067/
 
 # Model files
 *.cbm

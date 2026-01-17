@@ -9,9 +9,14 @@ Unused or redundant files are ignored.
 
 import os
 import re
+import sys
 from pathlib import Path
 from typing import List, Dict, Optional
-import sys
+
+# CRITICAL: Increase recursion limit before any processing
+# Some LaTeX files have deeply nested structures
+if sys.getrecursionlimit() < 10000:
+    sys.setrecursionlimit(10000)
 
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.file_io import read_tex_file

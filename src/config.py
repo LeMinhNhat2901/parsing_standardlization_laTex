@@ -10,8 +10,8 @@ import os
 # ============================================
 STUDENT_ID = "23120067"
 DATA_DIR = f"../../NMKHDL/data/{STUDENT_ID}"
-OUTPUT_DIR = f"./output_{STUDENT_ID}"
-MODEL_DIR = f"./models_{STUDENT_ID}"
+OUTPUT_DIR = f"../output_{STUDENT_ID}"
+MODEL_DIR = f"../models_{STUDENT_ID}"
 
 # Create directories if not exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -226,10 +226,10 @@ POST_PROCESS_WEIGHTS = {
 # ============================================
 
 LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR
-LOG_FILE = f'./logs_{STUDENT_ID}/lab2.log'
+LOG_FILE = f'../logs_{STUDENT_ID}/lab2.log'
 
 # Create log directory
-os.makedirs(os.path.dirname(LOG_FILE) if os.path.dirname(LOG_FILE) else './logs', exist_ok=True)
+os.makedirs(os.path.dirname(LOG_FILE) if os.path.dirname(LOG_FILE) else '../logs', exist_ok=True)
 
 # ============================================
 # MANUAL LABELS (EXAMPLE)
@@ -902,6 +902,272 @@ RUNTIME_CONFIG = {
     'parallel_processing': True,
     'num_workers': -1,  # -1 = use all cores
 }
+
+"""
+Configuration file for ML pipeline
+All parameters in one place for easy adjustment
+"""
+
+# ============================================================================
+# DATA SPLIT CONFIGURATION (Requirement 2.2.4)
+# ============================================================================
+
+# Test set: 1 manual + 1 auto publication
+TEST_MANUAL_PUBS = 1
+TEST_AUTO_PUBS = 1
+
+# Validation set: 1 manual + 1 auto publication  
+VAL_MANUAL_PUBS = 1
+VAL_AUTO_PUBS = 1
+
+# Training set: All remaining publications (automatic)
+
+# ============================================================================
+# LABELING CONFIGURATION (Requirement 2.2.2)
+# ============================================================================
+
+# Manual labeling requirements
+MIN_MANUAL_PUBLICATIONS = 5
+MIN_MANUAL_PAIRS = 20
+
+# Automatic labeling requirements
+AUTO_LABEL_PERCENTAGE = 0.1  # 10% of non-manual data
+
+# Automatic labeling thresholds
+TITLE_SIMILARITY_THRESHOLD = 90  # 0-100
+AUTHOR_OVERLAP_THRESHOLD = 70    # 0-100
+YEAR_TOLERANCE = 1               # years
+
+# ============================================================================
+# MODEL CONFIGURATION
+# ============================================================================
+
+# Model type: 'classifier' or 'ranker'
+MODEL_TYPE = 'ranker'  # 'ranker' recommended for ranking task
+
+# GPU usage
+USE_GPU = False  # Set to True if GPU available
+
+# ============================================================================
+# FEATURE ENGINEERING (Requirement 2.2.3)
+# ============================================================================
+
+# Feature groups enabled
+ENABLE_TITLE_FEATURES = True      # 5 features
+ENABLE_AUTHOR_FEATURES = True     # 5 features
+ENABLE_YEAR_FEATURES = True       # 4 features
+ENABLE_TEXT_FEATURES = True       # 5 features
+ENABLE_HIERARCHY_FEATURES = True  # 18 features
+
+# TF-IDF configuration
+TFIDF_MAX_FEATURES = 500
+TFIDF_NGRAM_RANGE = (1, 2)
+
+# ============================================================================
+# MODEL TRAINING
+# ============================================================================
+
+# CatBoost parameters
+ITERATIONS = 500
+LEARNING_RATE = 0.03
+DEPTH = 6
+L2_LEAF_REG = 3.0
+
+# Early stopping
+EARLY_STOPPING_ROUNDS = 50
+
+# Class imbalance handling
+AUTO_CLASS_WEIGHTS = True  # 'Balanced' for classifier
+
+# ============================================================================
+# HYPERPARAMETER TUNING
+# ============================================================================
+
+# Enable hyperparameter tuning
+ENABLE_HYPERPARAMETER_TUNING = False  # Set to True to enable
+
+# Parameter grid for tuning
+PARAM_GRID = {
+    'learning_rate': [0.01, 0.03, 0.05],
+    'depth': [4, 6, 8],
+    'l2_leaf_reg': [1, 3, 5],
+}
+
+# ============================================================================
+# EVALUATION (Requirement 2.2.5)
+# ============================================================================
+
+# Top-K candidates to return
+TOP_K = 5
+
+# Evaluation metrics
+PRIMARY_METRIC = 'MRR'  # Mean Reciprocal Rank
+ADDITIONAL_METRICS = ['Hit@1', 'Hit@3', 'Hit@5', 'Avg Rank']
+
+# ============================================================================
+# POST-PROCESSING
+# ============================================================================
+
+# Enable post-processing of predictions
+ENABLE_POST_PROCESSING = True
+
+# Post-processing strategies
+POST_PROCESS_EXACT_TITLE_MATCH = True
+POST_PROCESS_YEAR_FILTER = True
+POST_PROCESS_FIRST_AUTHOR_BOOST = True
+POST_PROCESS_ARXIV_ID_MATCH = True
+
+# Year difference penalty threshold
+MAX_YEAR_DIFFERENCE = 3  # Penalize if > 3 years apart
+
+# ============================================================================
+# OUTPUT PATHS
+# ============================================================================
+
+OUTPUT_DIR = 'output'
+MODEL_DIR = 'models'
+PLOTS_DIR = 'plots'
+LOGS_DIR = 'logs'
+
+# ============================================================================
+# FILE NAMES
+# ============================================================================
+
+REFS_BIB_FILENAME = 'refs.bib'
+REFERENCES_JSON_FILENAME = 'references.json'
+HIERARCHY_JSON_FILENAME = 'hierarchy.json'
+METADATA_JSON_FILENAME = 'metadata.json'
+PRED_JSON_FILENAME = 'pred.json'
+
+# ============================================================================
+# VALIDATION
+# ============================================================================
+
+# Validate configuration on import
+def validate_config():
+    """Validate configuration parameters"""
+    errors = []
+    
+    # Check data split
+    if TEST_MANUAL_PUBS < 1 or TEST_AUTO_PUBS < 1:
+        errors.append("Test set must have ≥1 manual and ≥1 auto publication (2.2.4)")
+    
+    if VAL_MANUAL_PUBS < 1 or VAL_AUTO_PUBS < 1:
+        errors.append("Valid set must have ≥1 manual and ≥1 auto publication (2.2.4)")
+    
+    # Check labeling requirements
+    if MIN_MANUAL_PUBLICATIONS < 5:
+        errors.append("Must have ≥5 manual publications (2.2.2)")
+    
+    if MIN_MANUAL_PAIRS < 20:
+        errors.append("Must have ≥20 manual pairs (2.2.2)")
+    
+    if AUTO_LABEL_PERCENTAGE < 0.1:
+        errors.append("Must auto-label ≥10% of non-manual data (2.2.2)")
+    
+    # Check top-k
+    if TOP_K != 5:
+        errors.append("TOP_K must be 5 per requirement 2.2.5")
+    
+    # Check model type
+    if MODEL_TYPE not in ['classifier', 'ranker']:
+        errors.append("MODEL_TYPE must be 'classifier' or 'ranker'")
+    
+    if errors:
+        print("\n⚠️  Configuration Warnings:")
+        for error in errors:
+            print(f"   - {error}")
+        print()
+    else:
+        print("✅ Configuration validated successfully\n")
+    
+    return len(errors) == 0
+
+# Validate on import
+if __name__ != '__main__':
+    validate_config()
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def get_split_config():
+    """Get data split configuration"""
+    return {
+        'test': {
+            'manual_pubs': TEST_MANUAL_PUBS,
+            'auto_pubs': TEST_AUTO_PUBS
+        },
+        'valid': {
+            'manual_pubs': VAL_MANUAL_PUBS,
+            'auto_pubs': VAL_AUTO_PUBS
+        }
+    }
+
+def get_labeling_config():
+    """Get labeling configuration"""
+    return {
+        'manual': {
+            'min_publications': MIN_MANUAL_PUBLICATIONS,
+            'min_pairs': MIN_MANUAL_PAIRS
+        },
+        'auto': {
+            'target_percentage': AUTO_LABEL_PERCENTAGE,
+            'title_threshold': TITLE_SIMILARITY_THRESHOLD,
+            'author_threshold': AUTHOR_OVERLAP_THRESHOLD,
+            'year_tolerance': YEAR_TOLERANCE
+        }
+    }
+
+def get_model_config():
+    """Get model configuration"""
+    return {
+        'model_type': MODEL_TYPE,
+        'use_gpu': USE_GPU,
+        'iterations': ITERATIONS,
+        'learning_rate': LEARNING_RATE,
+        'depth': DEPTH,
+        'l2_leaf_reg': L2_LEAF_REG,
+        'early_stopping_rounds': EARLY_STOPPING_ROUNDS,
+        'auto_class_weights': AUTO_CLASS_WEIGHTS
+    }
+
+def get_evaluation_config():
+    """Get evaluation configuration"""
+    return {
+        'top_k': TOP_K,
+        'primary_metric': PRIMARY_METRIC,
+        'additional_metrics': ADDITIONAL_METRICS,
+        'enable_post_processing': ENABLE_POST_PROCESSING
+    }
+
+def print_config():
+    """Print all configuration"""
+    print("\n" + "="*70)
+    print("CONFIGURATION")
+    print("="*70)
+    
+    print("\nData Split (2.2.4):")
+    print(f"  Test:  {TEST_MANUAL_PUBS} manual + {TEST_AUTO_PUBS} auto")
+    print(f"  Valid: {VAL_MANUAL_PUBS} manual + {VAL_AUTO_PUBS} auto")
+    print(f"  Train: All remaining")
+    
+    print("\nLabeling (2.2.2):")
+    print(f"  Manual: ≥{MIN_MANUAL_PUBLICATIONS} pubs, ≥{MIN_MANUAL_PAIRS} pairs")
+    print(f"  Auto: ≥{AUTO_LABEL_PERCENTAGE*100}% of non-manual data")
+    
+    print("\nModel:")
+    print(f"  Type: {MODEL_TYPE}")
+    print(f"  GPU: {USE_GPU}")
+    print(f"  Iterations: {ITERATIONS}")
+    print(f"  Learning rate: {LEARNING_RATE}")
+    
+    print("\nEvaluation (2.2.5):")
+    print(f"  Metric: {PRIMARY_METRIC}")
+    print(f"  Top-K: {TOP_K}")
+    print(f"  Post-processing: {ENABLE_POST_PROCESSING}")
+    
+    print("\n" + "="*70 + "\n")
 
 # ============================================
 # VALIDATION ON IMPORT
