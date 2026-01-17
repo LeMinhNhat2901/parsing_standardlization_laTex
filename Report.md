@@ -110,7 +110,7 @@ Tự đánh giá mức độ hoàn thành bài lab này là **hoàn thành đầ
 - ✅ Tỷ lệ parse thành công **98.4%** trên 129 publications
 - ✅ Trích xuất **4,127 BibTeX entries** từ nhiều nguồn (.bib, .bbl, \bibitem)
 - ✅ Đạt **MRR = 0.995** với CatBoost Ranker (YetiRank loss)
-- ✅ **Hit@1 = 99.5%**, Hit@5 = 100%
+- ✅ **Hit@1 = 99.5%**, Hit@5 = 100%    
 - ✅ Không xảy ra data leakage nhờ disable arXiv ID matching
 
 ## 2. Mục tiêu
@@ -245,53 +245,122 @@ Hệ thống được thiết kế theo mô hình **pipeline architecture** vớ
 ## 3. Cấu trúc file
 
 ```
-23120067/
+parsing_standardlization_laTex/          # Root directory
 │
-├── src/
-│   ├── config.py                   # Cấu hình tập trung
-│   ├── main_parser.py              # Entry point cho parser
-│   ├── main_matcher.py             # Entry point cho ML pipeline
-│   ├── create_manual_labels.py     # Tool tạo manual labels
-│   ├── requirements.txt            # Dependencies
+├── src/                                 # Source code chính
+│   ├── __init__.py
+│   ├── config.py                        # Cấu hình tập trung (paths, constants)
+│   ├── main_parser.py                   # Entry point cho parsing pipeline
+│   ├── main_matcher.py                  # Entry point cho ML matching pipeline
+│   ├── create_manual_labels.py          # Interactive tool tạo manual labels
+│   ├── requirements.txt                 # Python dependencies
+│   ├── manual_labels.json               # Manual labels cho 5 publications
 │   │
-│   ├── parser/                     # Module parser LaTeX
+│   ├── parser/                          # Module Hierarchical Parsing
 │   │   ├── __init__.py
-│   │   ├── file_gatherer.py        # Xử lý multi-file, \input/\include
-│   │   ├── latex_cleaner.py        # Cleanup & normalize
-│   │   ├── reference_extractor.py  # Trích xuất BibTeX từ \bibitem
-│   │   ├── hierarchy_builder.py    # Xây dựng cây phân cấp
-│   │   └── deduplicator.py         # Khử trùng ref và content
+│   │   ├── file_gatherer.py             # Phát hiện main.tex, gather \input/\include
+│   │   ├── latex_cleaner.py             # Remove formatting, normalize math
+│   │   ├── latex_parser.py              # Core LaTeX parsing logic
+│   │   ├── reference_extractor.py       # Extract từ .bib/.bbl/\bibitem
+│   │   ├── hierarchy_builder.py         # Xây dựng cây phân cấp (Document → Sections)
+│   │   ├── deduplicator.py              # Reference + Content deduplication
+│   │   ├── bibtex_converter.py          # Convert \bibitem → BibTeX
+│   │   └── output_generator.py          # Generate hierarchy.json, refs.bib
 │   │
-│   ├── matcher/                    # Module ML matching
+│   ├── matcher/                         # Module ML Reference Matching
 │   │   ├── __init__.py
-│   │   ├── data_preparation.py     # Tạo m×n pairs
-│   │   ├── labeling.py             # Gán nhãn manual/auto
-│   │   ├── feature_extractor.py    # Trích xuất 19+ features
-│   │   ├── hierarchy_features.py   # Features từ hierarchy
-│   │   ├── model_trainer.py        # CatBoost training
-│   │   └── evaluator.py            # MRR evaluation
+│   │   ├── data_preparation.py          # Create m×n candidate pairs
+│   │   ├── labeling.py                  # Manual + Auto labeling logic
+│   │   ├── feature_extractor.py         # Extract 19+ features
+│   │   ├── hierarchy_features.py        # Citation context features từ hierarchy
+│   │   ├── text_features.py             # Title/Author/Year/Abstract features
+│   │   ├── model_trainer.py             # CatBoost Ranker training
+│   │   ├── evaluator.py                 # MRR evaluation
+│   │   └── predictor.py                 # Generate top-5 predictions
 │   │
-│   └── utils/                      # Utility functions
+│   └── utils/                           # Shared utilities
 │       ├── __init__.py
-│       ├── file_io.py              # Đọc/ghi file
-│       ├── logger.py               # Logging
-│       ├── text_utils.py           # Xử lý text
-│       └── safe_types.py           # Safe type checking (avoid RecursionError)
+│       ├── file_io.py                   # Safe read/write JSON, BibTeX
+│       ├── logger.py                    # Structured logging setup
+│       ├── text_utils.py                # Text preprocessing, normalization
+│       ├── safe_types.py                # Type checking (avoid RecursionError)
+│       └── validation.py                # Data validation helpers
 │
-├── output/                         # Output data
-│   ├── 2504-13946/
-│   │   ├── hierarchy.json
-│   │   ├── refs.bib
-│   │   ├── metadata.json
-│   │   ├── references.json
-│   │   └── pred.json
-│   └── ...
+├── notebooks/                           # Jupyter notebooks cho exploration
+│   ├── 01_parsing_exploration.ipynb     # Khám phá LaTeX parsing
+│   ├── 02_feature_analysis.ipynb        # Phân tích features, correlation
+│   └── 03_model_training.ipynb          # Training experiments, hyperparameter tuning
 │
-├── manual_labels.json              # Manual labels (TỰ TAY TẠO)
-├── run_matching.py                 # Wrapper script
-├── README.md                       # Documentation
-└── Report.md                       # This report
+├── output/                              # Output data từ parser (129 publications)
+│   ├── parsing_summary.json             # Tổng hợp thống kê parsing
+│   ├── 2504-13946/                      # Publication folder
+│   │   ├── tex/                         # Raw LaTeX files
+│   │   ├── hierarchy.json               # Hierarchical structure
+│   │   ├── refs.bib                     # Extracted & deduplicated BibTeX
+│   │   ├── metadata.json                # Paper metadata (title, authors, date)
+│   │   ├── references.json              # Candidate arXiv papers (from Semantic Scholar)
+│   │   └── pred.json                    # Top-5 predictions + ground truth (nếu có)
+│   ├── 2504-13947/
+│   └── ...                              # (total 5000 publications)
+│
+├── output_23120067/                     # Backup/alternative output directory
+│
+├── logs/                                # Log files từ parsing & matching
+│   ├── parser.log
+│   ├── matcher.log
+│   └── errors.log
+│
+├── logs_23120067/                       # Student-specific logs (backup)
+│
+├── models_23120067/                     # Trained models
+│   ├── catboost_ranker.cbm              # CatBoost model binary
+│   ├── feature_importance.json          # Feature importance scores
+│   ├── training_config.json             # Hyperparameters used
+│   └── evaluation_results.json          # MRR, Hit@K metrics
+│
+├── env/                                 # Python virtual environment
+│   ├── bin/                             # (hoặc Scripts/ trên Windows)
+│   ├── lib/
+│   └── pyvenv.cfg
+│                     
+├── .gitignore                           # Git ignore rules
+├── README.md                            # Project documentation
+│                                        # - Setup instructions
+│                                        # - Usage guide
+│                                        # - Pipeline overview
+├── Report.pdf                           # Report
+└── LICENSE                              # License file
 ```
+
+**Ghi chú về cấu trúc:**
+
+1. **`src/`**: Chứa toàn bộ source code, chia thành 3 modules chính:
+   - `parser/`: Xử lý LaTeX → hierarchy.json + refs.bib
+   - `matcher/`: ML pipeline cho reference matching
+   - `utils/`: Shared utilities
+
+2. **`output/`**: Mỗi publication có 1 folder riêng với 5 files:
+   - `hierarchy.json`: Cấu trúc phân cấp theo yêu cầu 2.1.2
+   - `refs.bib`: BibTeX entries đã deduplicate
+   - `metadata.json`: Title, authors, dates, venue
+   - `references.json`: Candidate arXiv papers
+   - `pred.json`: Predictions + ground truth (chỉ có trong train/val/test pubs)
+
+3. **`notebooks/`**: Jupyter notebooks cho exploratory analysis và visualization.
+
+4. **`models_23120067/`**: Trained CatBoost model + evaluation metrics.
+
+5. **Root files**:
+   - `manual_labels.json`: Ground truth cho 5 publications (103 pairs)
+   - `auto_labels.json`: Auto-generated labels (79.8% coverage)
+   - `requirements.txt`: Dependencies chung
+
+**Tổng dung lượng:**
+- Source code (`src/`): ~50 KB
+- Output data (`output/`): ~500 MB (129 publications với tex files)
+- Models: ~5 MB
+- Logs: ~10 MB
+- **Total**: ~515 MB
 
 ---
 
