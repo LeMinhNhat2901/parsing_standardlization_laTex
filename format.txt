@@ -1,0 +1,835 @@
+
+ĐẠI HỌC QUỐC GIA THÀNH PHỐ HỒ CHÍ MINH
+TRƯỜNG ĐẠI HỌC KHOA HỌC TỰ NHIÊN
+----------
+
+
+NHẬP MÔN KHOA HỌC DỮ LIỆU
+
+BÁO CÁO CÁ NHÂN
+
+Lab 02: PARSING & REFERENCE MATCHING
+Giảng viên: Huỳnh Lâm Hải Đăng
+Giảng viên: Võ Nam Thục Đoan
+Giảng viên: Lê Nhựt Nam
+Giảng viên: Lê Ngọc Thành
+
+Sinh viên thực hiện: Lê Minh Nhật
+MSSV: 23120067 
+Lớp: CQ2023/21
+Thành phố Hồ Chí Minh, ngày 17 tháng 1 năm 2026 
+Họ và tên: Lê Minh Nhật
+MSSV: 23120067
+Lớp: CQ2023/21
+LAB01: SCRAPING
+HK1 NĂM HỌC 2025-2026
+PHẦN MỤC LỤC
+I.	Mức độ hoàn thành của từng yêu cầu:	5
+II.	Tổng quan đồ án:	5
+1.	Giới thiệu sơ lược:	5
+2.	Mục tiêu:	6
+3.	Phạm vi thực hiện:	6
+4.  Phương pháp tiếp cận:	6
+III.	Kiến trúc hệ thống:	7
+1.	Thiết kế cấp cao:	7
+2.	Mô hình song song:	7
+3.	Luồng dữ liệu:	8
+IV.	Kiến trúc hệ thống:	8
+1.	Cấu trúc file:	8
+2.	Tham số cấu hình:	9
+3.	Xử lý lỗi:	10
+V.	Công cụ và thư viện:	10
+1.	Cốt lõi:	10
+2.	Thư viện chuẩn và các model:	11
+3.	API:	11
+VI.	Giải thích mã nguồn:	12
+1.	Hàm main():	12
+2.	Tạo ID:	13
+3.	Khởi tạo Class ArxivScraper:	13
+4.	Tích hợp API Semantic Scholar:	15
+5.	Trích xuất tham chiếu và nơi công bố:	16
+6.	Trích xuất ID arXiv toàn diện:	18
+7.	Thu thập metadata cùng với các phiên bản:	19
+8.	Thu thập ngày của phiên bản:	20
+9.	Tải xuống phiên bản đồng thời:	21
+10.	Các thao tác dọn dẹp tập tin:	23
+11.	Logic xử lý bài báo chính:	24
+12.	Xử lý hàng loạt với theo dõi tiến độ:	26
+13.	Tạo báo cáo hiệu suất:	27
+VII.	Phân tích hiệu suất:	29
+1.	Hiệu suất thời gian chạy:	29
+a)	Tổng thời gian thực thi:	29
+b)	Phân tích thời gian theo giai đoạn:	30
+c)	Phân phối thời gian xử lý mỗi bài báo:	31
+2.	Memory footprint:	31
+a)	Thống kê sử dụng bộ nhớ:	31
+b)	Hiệu quả bộ nhớ:	32
+3.	Phân tích lưu trữ đĩa:	32
+a)	Thống kê lưu trữ:	32
+b)	Lưu trữ mỗi bài báo:	33
+c)	Tác động của tối ưu hóa lưu trữ:	33
+4.	Hiệu suất mạng:	34
+a)	Thống kê lệnh gọi API:	34
+b)	Thống kê tải xuống:	34
+5.	Phân tích độ song song:	35
+a)	Mức độ sử dụng luồng:	35
+b)	Kiểm tra khả năng mở rộng:	36
+VIII.	Kết quả thống kê: (có thể đọc ở file performance_report_23120067.json)	36
+1.	Tóm tắt thu thập dữ liệu:	36
+2.	Thống kê phiên bản:	36
+3.	Kết quả trích xuất tham chiếu:	37
+4.	Độ hoàn chỉnh của siêu dữ liệu:	38
+5.	Thống kê kích thước tập tin:	38
+6.	Điểm chuẩn hiệu suất:	39
+IX.	Những hạn chế, thách thức và giải pháp:	39
+1.	Giới hạn tốc độ của Semantic Scholar:	39
+2.	Phiên bản:	40
+3.	Tối ưu hóa lưu trữ:	41
+4.	Xử lý lỗi:	41
+X.	Kết luận:	42
+XI.	Tài liệu tham khảo:	42
+XII.	Đường link Youtube:	43
+XIII.	Lời cảm ơn:	43
+
+
+ 
+
+LAB01: SEARCH
+
+I.	Mức độ hoàn thành của từng yêu cầu:
+Tự đánh giá mức độ hoàn thành bài lab này là hoàn thành các yêu cầu cơ bản và có thêm một vài yêu cầu nâng cao.
+Mã yêu cầu	Mô tả	Trạng thái	Minh chứng
+2.1.1	Phân tích cấu trúc phân cấp (Hierarchy)	 Hoàn thành	hierarchy.json
+2.1.2	Trích xuất References từ \bibitem	 Hoàn thành	reference_extractor.py
+2.1.3	Chuyển đổi sang định dạng BibTeX chuẩn	 Hoàn thành	refs.bib
+2.2.1	Làm sạch và chuẩn hóa dữ liệu	 Hoàn thành	text_utils.py
+2.2.2	Manual Labeling (5 pubs, 103 pairs)	 Hoàn thành	manual_labels.json
+2.2.2	Auto Labeling (>10%)	 Hoàn thành	Đạt 79.8%
+2.2.3	Trích xuất 37 đặc trưng (Features)	 Hoàn thành	feature_extractor.py
+2.2.4	Chia dữ liệu (1 Manual + 1 Auto cho Test/Val)	 Hoàn thành	main_matcher.py
+2.2.5	Đánh giá bằng chỉ số MRR	 Hoàn thành	MRR: 0.995
+
+II.	Tổng quan đồ án:
+1.	Giới thiệu sơ lược:
+-	Đồ án tập trung vào việc xử lý các bài báo khoa học từ arXiv ở định dạng LaTeX. Hệ thống thực hiện hai nhiệm vụ chính: (1) Chuyển đổi cấu trúc LaTeX không cấu trúc thành dữ liệu JSON/BibTeX có cấu trúc; (2) Xây dựng mô hình Machine Learning để tự động so khớp các trích dẫn (citations) với cơ sở dữ liệu bài báo trên arXiv. 
+-	Thành tựu chính:
+•	Tỷ lệ thành công 100% trên 1.055 bài báo.
+•	Cải thiện hiệu suất 11.9 lần nhờ song song hóa.
+•	Không vi phạm giới hạn tốc độ API với cơ chế giới hạn tốc độ thông minh.
+•	Sử dụng bộ nhớ đỉnh: 399.89 MB với mức trung bình 236.53 MB.
+•	Đầu ra cuối cùng: 307.6 MB sau khi tối ưu hóa bằng cách xóa hình ảnh.
+ 
+2.	Mục tiêu:
+•	Xây dựng bộ parser mạnh mẽ có khả năng xử lý các dự án LaTeX đa file.
+•	Tự động hóa việc chuẩn hóa các trích dẫn viết tay (\bibitem) sang BibTeX.
+•	Huấn luyện mô hình xếp hạng (Learning to Rank) để tìm kiếm bài báo chính xác nhất với độ trễ thấp và độ chính xác cao.
+3.	Phạm vi thực hiện:
+Hệ thống thu thập xử lý các bài báo arXiv trong phạm vi được chỉ định 2504.13946 đến 2504.15000 (tổng cộng 1.055 bài báo), thu thập:
+•	Nhiều phiên bản của mỗi bài báo (v1, v2, v3, v.v.)
+•	Tập tin nguồn LaTeX (.tex) và tập tin BibTeX (.bib)
+•	Siêu dữ liệu có cấu trúc (tiêu đề, tác giả, ngày tháng, nơi công bố)
+•	Thông tin tham chiếu qua API Semantic Scholar
+4.  Phương pháp tiếp cận:
+Việc triển khai sử dụng một kiến trúc đồng thời đa cấp xử lý các bài báo song song trong khi vẫn duy trì giới hạn tốc độ API và đảm bảo tính toàn vẹn của dữ liệu. Hệ thống được thiết kế để thực thi trên Google Colab (chế độ chỉ CPU) với dấu chân bộ nhớ tối thiểu và theo dõi hiệu suất tự động.
+Công cụ:
+•	Platform: Google Colab (CPU-only mode)
+•	Python: 3.10.12
+•	RAM: 12 GB available
+•	Disk: 100+ GB available
+III.	Kiến trúc hệ thống:
+1.	Thiết kế cấp cao:
+Hệ thống kiến trúc đường ống (pipeline) với bốn giai đoạn chính:
+Hệ thống được chia thành 2 module chính:
+1.	Module Parser (main_parser.py): Duyệt thư mục => Phát hiện file chính => Làm sạch mã nguồn => Xây dựng cây phân cấp => Trích xuất BibTeX.
+2.	Module Matcher (main_matcher.py): Chuẩn bị dữ liệu => Gán nhãn (Manual/Auto) => Trích xuất đặc trưng => Huấn luyện CatBoost => Dự đoán (Inference).
+2.	Mô hình song song:
+Hệ thống triển khai ba cấp độ song song:
+Cấp 1: Song song hóa cấp độ bài báo
+•	Nhiều bài báo được xử lý đồng thời.
+•	Mặc định: 12 trình làm việc (worker) đồng thời (có thể cấu hình qua --workers).
+•	Mỗi bài báo được xử lý độc lập trong một luồng (thread) riêng.
+Cấp 2: Song song hóa khám phá phiên bản
+•	Các yêu cầu HEAD đồng thời để kiểm tra sự tồn tại của phiên bản.
+•	6 luồng kiểm tra các phiên bản đồng thời cho mỗi bài báo.
+•	Khám phá tất cả các phiên bản (v1, v2, v3...) một cách hiệu quả.
+Cấp 3: Song song hóa tải xuống
+•	Tải xuống nhiều phiên bản cho mỗi bài báo.
+•	Mặc định: 4 lượt tải xuống đồng thời (có thể cấu hình qua --dworkers).
+•	Giải nén và dọn dẹp song song.
+3.	Luồng dữ liệu:
+ 
+IV.	Kiến trúc hệ thống:
+1.	Cấu trúc file:
+Việc triển khai bao gồm một script Python duy nhất, được tổ chức tốt (scraping_arxiv.py) với các thành phần sau:
+
+scraping_arxiv.py (1.040 dòng) 
+├── Hằng số cấu hình (dòng 1-30) 
+├── Thiết lập Ghi nhật ký (dòng 32-38) 
+├── Hàm tiện ích (dòng 40-110) 
+│ ├── format_yymm_id() 
+│ ├── ensure_dir() 
+│ ├── download_eprint_session() 
+│ ├── remove_non_tex_bib() 
+│ └── flatten_directory() 
+├── Lớp RateLimiter (dòng 112-135) 
+├── Lớp ArxivScraper (dòng 137-950) 
+│ ├── __init__() - Khởi tạo 
+│ ├── _ss_get_cached() - API Semantic Scholar 
+│ ├── _fetch_references_and_paper_venue() 
+│ ├── _fetch_metadata_with_complete_versions() 
+│ ├── _discover_all_versions() 
+│ ├── _download_versions_concurrently() 
+│ ├── scrape_single_paper() - Logic chính cho mỗi bài báo 
+│ ├── scrape_papers() - Xử lý hàng loạt 
+│ ├── _generate_report() - Số liệu hiệu suất 
+│ └── Các phương thức trợ giúp (thu thập ngày, xác thực, v.v.) 
+└── Main (dòng 952-1040)
+2.	Tham số cấu hình:
+Tham số	Mặc định	Mục đích
+DEFAULT_MAX_PAPER_WORKERS	12	Số bài báo được xử lý song song
+DEFAULT_DOWNLOAD_WORKERS	4	Số phiên bản tải xuống cho mỗi bài báo
+DEFAULT_SS_POOLSIZE	20	Kích thước nhóm kết nối HTTP
+VERSION_HEAD_THREADS	6	Số lượt kiểm tra phiên bản đồng thời
+MAX_VERSION_TO_CHECK	8	Số phiên bản tối đa để khám phá
+SS_REQUESTS_PER_SECOND	2	Giới hạn tốc độ Semantic Scholar
+SS_REQUESTS_PER_5_MIN	200	Cửa sổ 5 phút của Semantic Scholar
+
+3.	Xử lý lỗi:
+Việc triển khai sử dụng lập trình phòng thủ với nhiều lớp xử lý lỗi:
+1.	Lỗi mạng: Tự động thử lại với thời gian lùi theo hàm mũ (exponential backoff) qua urllib3.Retry
+2.	Giới hạn tốc độ API: Bộ giới hạn tốc độ thông minh ngăn chặn lỗi 429
+3.	Lỗi hệ thống tệp: Các khối Try-catch với ghi nhật ký gỡ lỗi
+4.	Xác thực dữ liệu: Xác thực định dạng ID trước khi xử lý
+5.	Suy giảm từ từ (Graceful Degradation): Các bài báo thiếu dữ liệu không chặn các bài báo khác
+V.	     Công cụ và thư viện:
+1.	Cốt lõi:
+Thư viện	Phiên bản	Mục đích
+arxiv	≥2.0.0	Thư viện bao bọc (wrapper) API arXiv chính thức để lấy siêu dữ liệu và tải xuống
+requests	≥2.28.0	HTTP client với quản lý phiên và logic thử lại
+beautifulsoup4	≥4.11.0	Phân tích HTML để trích xuất ngày của phiên bản
+tqdm	≥4.64.0	Trực quan hóa thanh tiến trình
+psutil	≥5.9.0	Giám sát sử dụng bộ nhớ
+pandas	≥2.0.0	Thao tác dữ liệu (tạo ID)
+
+2.	Thư viện chuẩn và các model:
+•	concurrent.futures: ThreadPoolExecutor để thực hiện song song
+•	json: Tuần tự hóa/Giải tuần tự hóa JSON
+•	tarfile: Giải nén tệp lưu trữ .tar.gz
+•	pathlib: Xử lý đường dẫn tệp hiện đại
+•	argparse: Phân tích tham số dòng lệnh
+•	logging: Hệ thống ghi nhật ký có cấu trúc
+•	re: Biểu thức chính quy để phân tích ID
+•	time: Đo lường thời gian thực thi
+•	tracemalloc: Theo dõi bộ nhớ
+3.	API:
+API arXiv
+•	Endpoint: https://export.arxiv.org/api/query
+•	Mục đích: Siêu dữ liệu bài báo và URL tải xuống nguồn
+•	Giới hạn tốc độ: Không có giới hạn nghiêm ngặt (sử dụng độ trễ khuyến nghị của arxiv.py)
+•	Định dạng phản hồi: Atom XML (được xử lý bởi arxiv.py)
+Máy chủ e-Print của arXiv
+•	Endpoint: https://arxiv.org/e-print/{arxiv_id}v{version}
+•	Mục đích: Tải xuống trực tiếp tệp lưu trữ nguồn LaTeX
+•	Định dạng: Tệp lưu trữ nén .tar.gz
+•	Xác thực: Không yêu cầu
+API Semantic Scholar
+•	Endpoint: https://api.semanticscholar.org/graph/v1/paper/arXiv:{arxiv_id}
+•	Mục đích: Tham chiếu trích dẫn và nơi công bố
+•	Giới hạn tốc độ: 1 yêu cầu/giây, 100 yêu cầu/cửa sổ 5 phút
+•	Xác thực: Tùy chọn (không sử dụng trong triển khai này)
+VI.	Giải thích mã nguồn:
+1.	Hàm main():
+Hàm điểm vào (main()) xử lý hai chế độ thực thi:
+Chế độ 1: Cấu hình mặc định (Colab)
+ 
+Tại sao thiết kế này?
+•	Notebook Colab không hỗ trợ tham số dòng lệnh một cách dễ dàng
+•	Cung cấp khả năng thực thi không cần cấu hình: chỉ cần chạy ô (cell)
+•	Tự động phát hiện môi trường Colab qua kiểm tra mô-đun google.colab
+Chế độ 2: CLI với các tham số
+ Tại sao dùng các nhóm loại trừ lẫn nhau (mutually exclusive groups)?
+•	Người dùng cung cấp HOẶC một phạm vi HOẶC các ID cụ thể, không phải cả hai
+•	Ngăn chặn các kết hợp đầu vào không rõ ràng
+•	Thông báo lỗi rõ ràng nếu người dùng vi phạm ràng buộc
+2.	Tạo ID:
+ 
+Giải thích:
+•	Tách ID tại dấu thập phân: "2504.13946" → ["2504", "13946"]
+•	Trích xuất phạm vi số và tạo tất cả ID ở giữa
+•	Định dạng chỉ định :05d đảm bảo các số 0 đứng đầu (13946 không phải 13946)
+•	Phạm vi bao hàm: cả ID bắt đầu và kết thúc đều được bao gồm
+Ví dụ:
+Đầu vào: "2504.13946", "2504.13950"
+Đầu ra: ["2504.13946", "2504.13947", "2504.13948", "2504.13949", "2504.13950"]
+3.	Khởi tạo Class ArxivScraper:
+ 
+
+Tại sao dùng đối tượng Session?
+•	Gộp kết nối (Connection pooling): Tái sử dụng kết nối TCP → yêu cầu nhanh hơn
+•	Tự động thử lại: Xử lý các lỗi mạng tạm thời
+•	Header cố định: Có thể đặt các header chung một lần
+•	Quản lý cookie: Duy trì trạng thái phiên nếu cần
+Chiến lược thử lại:
+•	total=2: Tối đa 2 lần thử lại cho mỗi yêu cầu
+•	backoff_factor=0.5: Chờ 0.5s, 1s, 2s giữa các lần thử lại (theo hàm mũ)
+•	status_forcelist: Chỉ thử lại khi có lỗi máy chủ, không phải lỗi máy khách (4xx)
+Định cỡ nhóm kết nối:
+•	pool_connections=20: Lên đến 20 máy chủ (host) khác nhau
+•	pool_maxsize=20: Lên đến 20 kết nối cho mỗi máy chủ
+•	Quan trọng cho yêu cầu song song: Ngăn chặn cạn kiệt kết nối
+Thiết lập bộ giới hạn tốc độ:
+        self.ss_rate_limiter = RateLimiter()
+ 
+
+Tại sao thiết kế này?
+•	Bảo vệ hai cấp độ: Cả giới hạn đột biến ngắn hạn và giới hạn dài hạn
+•	Cửa sổ trượt: Chính xác hơn so với các khoảng thời gian cố định
+•	Deque cho hiệu quả: Thao tác append/pop O(1)
+•	Tự động tạm dừng: Chặn luồng cho đến khi cửa sổ giới hạn tốc độ mở ra
+Theo dõi bộ nhớ:
+        tracemalloc.start()
+        self.process = psutil.Process()
+Mục đích:
+•	tracemalloc: Cấp phát bộ nhớ Python (đối tượng Python thuần túy)
+•	psutil.Process(): Tổng RSS (Kích thước tập hợp thường trú) của tiến trình bao gồm cả các phần mở rộng C
+•	Cả hai cung cấp các góc nhìn bổ sung về việc sử dụng bộ nhớ
+
+4.	Tích hợp API Semantic Scholar:
+ 
+LRU Cache: @lru_cache(maxsize=1024)
+•	Lưu vào bộ đệm 1.024 lệnh gọi API gần đây nhất
+•	Cùng (arxiv_id, fields) → trả về kết quả đã lưu trong bộ đệm mà không cần gọi mạng
+•	Tại sao là 1.024?: Cân bằng giữa sử dụng bộ nhớ và tỷ lệ trúng (hit rate)
+•	Tự động loại bỏ các mục ít được sử dụng nhất khi đầy
+Giới hạn tốc độ: self.ss_rate_limiter.wait_if_needed()
+•	Được gọi TRƯỚC mỗi yêu cầu API
+•	Chặn luồng nếu giới hạn tốc độ có thể bị vượt qua
+•	Ngăn chặn lỗi 429 một cách chủ động
+Xử lý mã trạng thái HTTP:
+•	200 OK: Thành công, trả về JSON đã phân tích
+•	429 Too Many Requests: Bị giới hạn tốc độ (đã ghi nhật ký, trả về None)
+•	404 Not Found: Bài báo không được lập chỉ mục (trả về dict rỗng)
+•	5xx Server Error: Được xử lý bởi adapter thử lại
+5.	Trích xuất tham chiếu và nơi công bố:
+ 
+
+Tại sao dùng một lệnh gọi API duy nhất?
+•	Hiệu quả: Một yêu cầu thay vì 1 + N (N = số lượng tham chiếu)
+•	Thân thiện với giới hạn tốc độ: Dễ dàng giữ trong giới hạn 2 yêu cầu/giây
+•	Dữ liệu nguyên tử: Nơi công bố và tham chiếu được lấy cùng nhau
+
+ 
+
+Tại sao ưu tiên này?
+•	publicationVenue là dữ liệu có cấu trúc (đáng tin cậy hơn)
+•	venue là chuỗi văn bản tự do (kém nhất quán hơn)
+•	Phương án dự phòng từ từ đảm bảo chúng ta lấy được nơi công bố khi có sẵn
+ 
+
+Chiến lược trích xuất tham chiếu:
+•	Trích xuất ID arXiv từ nhiều vị trí có thể (giải thích bên dưới)
+•	Xác thực định dạng ID (mẫu YYMM.NNNNN)
+•	Xây dựng từ điển siêu dữ liệu với các trường bắt buộc
+•	Chỉ bao gồm các tham chiếu CÓ ID arXiv (theo yêu cầu)
+
+6.	Trích xuất ID arXiv toàn diện:
+ 
+Tại sao dùng nhiều phương pháp trích xuất?
+•	Trường externalIds: Nguồn chính, dữ liệu có cấu trúc
+•	Phân tích URL: Phương án dự phòng khi externalIds bị thiếu
+•	Nhiều biến thể key: Semantic Scholar viết hoa không nhất quán
+•	Mẫu Regex: Xử lý cả URL /abs/ và /pdf/
+ 
+Phân tích mẫu (pattern):
+•	^(\w+\.)?: Tiền tố tùy chọn như "cs." hoặc "math."
+•	\d{2}: Năm hai chữ số (ví dụ: "25" cho 2025)
+•	(0[1-9]|1[0-2]): Tháng 01-12
+•	\.\d{4,5}$: Dấu thập phân + 4-5 chữ số của bài báo
+7.	Thu thập metadata cùng với các phiên bản:
+ 
+Tại sao khám phá phiên bản riêng biệt?
+•	arxiv.py không cung cấp danh sách phiên bản
+•	Yêu cầu HEAD trực tiếp nhanh hơn phân tích HTML
+•	Kiểm tra song song khám phá tất cả phiên bản nhanh chóng
+ 
+Tại sao kiểm tra tính liên tục?
+•	Các phiên bản là tuần tự: v1, v2, v3, ...
+•	Khoảng trống chỉ ra phiên bản bị rút lại hoặc chưa được công bố
+•	Ngăn chặn kết quả dương tính giả từ lỗi HTTP
+ 
+Tại sao dùng HEAD thay vì GET?
+•	Yêu cầu HEAD chỉ lấy header, không lấy nội dung (body)
+•	Nhanh hơn ~100 lần so với tải xuống toàn bộ tệp lưu trữ
+•	Cùng mã trạng thái như GET (200 = tồn tại, 404 = không tìm thấy)
+ 
+Xây dựng metadata:
+•	Thêm nơi công bố (ưu tiên nơi công bố được truyền vào từ lệnh gọi tham chiếu
+•	Lấy từ Semantic Scholar hoặc arxiv.py ...
+•	Thu thập ngày của phiên bản từ HTML
+8.	Thu thập ngày của phiên bản:
+ 
+Tại sao thu thập từ HTML thay vì API?
+•	API arXiv không cung cấp ngày sửa đổi
+•	arxiv.py chỉ có ngày nộp ban đầu
+•	Phân tích HTML đáng tin cậy: Định dạng ổn định trong nhiều năm
+Giải thích mẫu Regex:
+[v2] Wed, 15 Apr 2025
+│││  │   ││  │││ ││││
+│││  │   ││  │││ └───── Năm (4 chữ số)
+│││  │   ││  └────────── Tên tháng (3 ký tự)
+│││  │   │└───────────── Ngày (1-2 chữ số)
+│││  │   └────────────── Ngày trong tuần (bỏ qua)
+│││  └────────────────── Dấu phân cách
+││└───────────────────── Văn bản ngày tháng
+│└────────────────────── Số phiên bản
+└─────────────────────── Dấu ngoặc mở
+
+9.	Tải xuống phiên bản đồng thời:
+ 
+Tại sao giới hạn số trình làm việc (worker) theo số lượng phiên bản?
+max_workers=min(self.download_workers, max(1, len(versions_info)))
+•	Không tạo nhiều luồng hơn số phiên bản cần tải
+•	Ngăn chặn chi phí (overhead) luồng khi bài báo chỉ có 1-2 phiên bản
+•	max(1, ...) đảm bảo ít nhất một trình làm việc ngay cả khi danh sách trống
+
+ 
+Tại sao theo trình tự này?
+•	Tải xuống trước: Tách biệt I/O mạng khỏi các hoạt động tốn CPU
+•	Giải nén vào thư mục phiên bản: Cách ly các phiên bản với nhau
+•	Làm phẳng: Nhiều nguồn arXiv có các thư mục lồng nhau không cần thiết
+•	Dọn dẹp tệp không phải TeX/BIB: Xóa hình ảnh, PDF, tệp phụ trợ
+•	Xóa tệp lưu trữ: Giải phóng dung lượng đĩa ngay sau khi giải nén
+10.	Các thao tác dọn dẹp tập tin:
+ 
+Làm phẳng cấu trúc thư mục:
+•	Nhiều tệp .tar.gz của arXiv giải nén thành: folder/subfolder/actual_files/
+•	Việc làm phẳng di chuyển đến: folder/actual_files/
+•	Kiểm tra một cấp: Chỉ làm phẳng nếu tồn tại chính xác một thư mục con
+•	Bảo toàn các cấu trúc nhiều thư mục (ví dụ: sections/, figures/)
+ 
+Loại bỏ các tập tin không thiết yếu:
+Những gì bị loại bỏ?
+•	Tệp hình ảnh: .png, .jpg, .pdf, .eps, .svg
+•	Tệp tạo tác bản dựng: .aux, .log, .bbl, .blg
+•	Tệp dữ liệu: .csv, .dat, .txt
+•	Mọi thứ trừ .tex và .bib
+Tại sao dùng đệ quy (rglob)?
+•	Tệp có thể nằm trong thư mục con: figures/plot1.png
+•	Cần duyệt qua toàn bộ cấu trúc cây
+•	rglob('*') = mẫu glob đệ quy
+11.	Logic xử lý bài báo chính:
+ 
+Tìm nạp siêu dữ liệu và tham chiếu song song:
+ 
+Tại sao song song với thời gian chờ (timeout)?
+•	Tham chiếu và siêu dữ liệu độc lập: Có thể tìm nạp đồng thời
+•	Thời gian chờ 30 giây: Ngăn chặn treo máy khi API phản hồi chậm
+•	Phương án dự phòng từ từ: Nếu một cái thất bại, cái kia vẫn có thể thành công
+•	2 trình làm việc: Một cho mỗi tác vụ song song
+ 
+Logic ưu tiên:
+1.	Nơi công bố từ lệnh gọi tham chiếu Semantic Scholar (đáng tin cậy nhất)
+2.	Nơi công bố từ lệnh gọi bài báo Semantic Scholar (dự phòng)
+3.	Nơi công bố từ trường journal_ref của arxiv.py (phương án cuối cùng)
+4.	Chuỗi rỗng nếu không có
+ 
+Tại sao lưu trước khi tải xuống?
+•	Tìm nạp siêu dữ liệu nhanh (~1-2 giây)
+•	Tải xuống có thể mất 10-30 giây
+•	Lưu sớm = dữ liệu được bảo toàn nếu tải xuống thất bại
+•	Kết quả một phần vẫn hữu ích cho phân tích
+Tại sao lấy mẫu số liệu cho mỗi bài báo?
+•	Bộ nhớ dao động: Cần nhiều mẫu để tính trung bình
+•	Đĩa tăng dần: Theo dõi mô hình tăng trưởng
+•	Thời gian cho mỗi bài báo: Cho phép tính toán trung bình
+•	Hồ sơ hiệu suất: Xác định các bài báo xử lý chậm
+12.	Xử lý hàng loạt với theo dõi tiến độ:
+ 
+Tại sao dùng trình bao bọc (wrapper) _scrape_single_paper_safe?
+ 
+•	Ngăn chặn luồng bị sập: Ngoại lệ được bắt và ghi nhật ký
+•	Các bài báo khác tiếp tục: Một thất bại không dừng toàn bộ hàng loạt
+•	Trả về boolean rõ ràng: True = thành công, False = thất bại
+Tích hợp thanh tiến trình:
+•	tqdm(total=len(arxiv_ids)): Khởi tạo với tổng số lượng
+•	pbar.update(1): Tăng thêm 1 sau khi mỗi bài báo hoàn thành
+•	ETA thời gian thực: Hiển thị thời gian ước tính còn lại
+•	Tốc độ Bài báo/giây: Hiển thị thông lượng
+13.	Tạo báo cáo hiệu suất:
+ 
+Hai số liệu thời gian:
+1.	avg_time_per_paper: Thời gian thực tế ÷ số bài báo = 2.36 giây
+o	Thời gian thực tế đã trôi qua với tính song song
+o	Những gì người dùng thực sự trải nghiệm
+2.	avg_sequential_time: Tổng thời gian cá nhân ÷ số bài báo = 28.20 giây
+o	Thời gian giả định nếu không có tính song song
+o	Hiển thị sự tăng tốc: 28.20 / 2.36 = Nhanh hơn 11.9 lần
+ 
+Tại sao theo dõi cả hai size before và size after?
+•	Trước: Kích thước bài báo ban đầu (0 cho bài báo mới)
+•	Sau: Kích thước cuối cùng sau khi dọn dẹp
+•	Khác biệt: Hiển thị dung lượng lưu trữ tiết kiệm được bằng cách xóa hình ảnh
+Hai tỷ lệ tham chiếu:
+1.	Trung bình tham chiếu mỗi bài báo: 0.85 tham chiếu (một số bài báo có 0)
+2.	Tỷ lệ trích xuất ID arXiv: 34.64% tham chiếu có ID arXiv
+o	Không phải tất cả tham chiếu đều là bài báo arXiv
+o	Nhiều bài trích dẫn tạp chí, sách, hội nghị
+Cấu trúc báo cáo:
+ 
+
+ 
+Tại sao ensure_ascii=False?
+•	Bảo toàn các ký tự Unicode trong tên tác giả (ví dụ: dấu, tiếng Trung)
+•	Làm cho JSON có thể đọc được bởi con người đối với nội dung không phải ASCII
+•	Không ảnh hưởng đến việc phân tích, cải thiện khả năng đọc
+VII.	Phân tích hiệu suất:
+1.	Hiệu suất thời gian chạy:
+a)	Tổng thời gian thực thi:
+Số liệu	Giá trị	Chi tiết
+Tổng thời gian chạy	2,488.3 giây	41 phút 28 giây
+Số bài báo đã xử lý	1.055 bài báo	Tỷ lệ thành công 100%
+Thời gian trung bình mỗi bài báo	2.36 giây	Với tính song song (thời gian thực tế)
+Tương đương tuần tự	28.20 giây	Giả định đơn luồng
+Hệ số tăng tốc	11.9x	Song song so với tuần tự
+
+Phân tích:
+•	Hiệu quả song song hóa: Tăng tốc gần như tuyến tính (12 trình làm việc → 11.9x)
+•	Thời gian thực tế chiếm ưu thế: I/O mạng hưởng lợi từ tính đồng thời
+•	Không có tắc nghẽn CPU: Tải công việc bị giới hạn bởi I/O lý tưởng cho luồng
+b)	Phân tích thời gian theo giai đoạn:
+Giai đoạn	Tổng thời gian (giây)	Tỷ lệ
+Khám phá đầu vào	16,580.15	66.6%
+Thu thập tham chiếu	8,594.12	34.5%
+Tải xuống & Xử lý	9,433.78	37.9%
+Hoạt động khác	—	—
+Lưu ý: Các giai đoạn chồng chéo do tính song song, do đó tổng > 100%
+Diễn giải:
+•	Khám phá đầu vào lớn nhất: Bao gồm tìm nạp siêu dữ liệu + khám phá phiên bản
+•	Nhiều yêu cầu HEAD: Mỗi bài báo kiểm tra tối đa 8 phiên bản
+•	Thu thập tham chiếu: Một lệnh gọi API duy nhất nhưng bao gồm cả thời gian chờ giới hạn tốc độ
+•	Giai đoạn tải xuống: Bao gồm giải nén, dọn dẹp, hoạt động I/O
+Cơ hội tối ưu hóa được xác định:
+1.	Khám phá phiên bản có thể lưu bộ đệm kết quả cho các họ bài báo
+2.	Yêu cầu HEAD hàng loạt có thể giảm chi phí
+3.	Trích xuất tham chiếu đã tối ưu (một lệnh gọi cho mỗi bài báo)
+
+c)	Phân phối thời gian xử lý mỗi bài báo:
+Phân phối theo phân vị của thời gian xử lý:
+P10:  18.5 giây  (10% nhanh nhất)
+P25:  22.3 giây  (phân vị thứ nhất)
+P50:  27.8 giây  (trung vị)
+P75:  33.6 giây  (phân vị thứ ba)
+P90:  41.2 giây  (10% chậm nhất)
+P99:  58.9 giây  (ngoại lệ)
+Các yếu tố biến thiên:
+•	Số lượng phiên bản (1 so với 5 phiên bản)
+•	Kích thước tệp lưu trữ (100 KB so với 10 MB)
+•	Biến động độ trễ mạng
+•	Thời gian phản hồi API
+2.	Memory footprint:
+a)	Thống kê sử dụng bộ nhớ:
+Số liệu	Giá trị (MB)	Diễn giải
+Bộ nhớ đỉnh	399.89 MB	RSS tối đa tại bất kỳ thời điểm nào
+Bộ nhớ trung bình	236.53 MB	Trung bình trên 1.055 mẫu
+Cơ sở	~180 MB	Trình thông dịch Python + thư viện
+Tập hợp làm việc	~60 MB	Chi phí thu thập dữ liệu đang hoạt động
+
+Hồ sơ bộ nhớ:
+ 
+Phân tích:
+•	Sử dụng bộ nhớ ổn định: Không phát hiện rò rỉ bộ nhớ
+•	Đỉnh ở điểm giữa: Số luồng đồng thời tối đa đang hoạt động
+•	Dọn dẹp hiệu quả: Bộ nhớ được giải phóng sau khi xử lý
+b)	Hiệu quả bộ nhớ:
+Chi phí bộ nhớ mỗi bài báo:
+Tổng chi phí = Đỉnh - Cơ sở = 399.89 - 180 = 219.89 MB
+Mỗi bài báo (song song) = 219.89 / 12 trình làm việc ≈ 18.3 MB mỗi bài báo
+Thành phần:
+•	Bộ đệm phiên HTTP: ~3 MB mỗi trình làm việc
+•	Tạm thời giải nén Tar: ~8 MB mỗi lần giải nén
+•	Phân tích JSON: ~2 MB mỗi siêu dữ liệu bài báo
+•	Chi phí ngăn xếp luồng: ~1 MB mỗi luồng
+So sánh với các lựa chọn thay thế:
+•	Đơn luồng: Sẽ sử dụng ~200 MB không đổi
+•	Nhiều trình làm việc hơn (24): Sẽ đạt đỉnh ~550 MB
+•	Hiện tại (12 trình làm việc): Cân bằng tối ưu
+3.	Phân tích lưu trữ đĩa:
+a)	Thống kê lưu trữ:
+Số liệu	Giá trị (MB)	Giá trị (Bytes)
+Sử dụng đĩa tối đa	411.9 MB	432,046,747
+Kích thước đầu ra cuối cùng	307.6 MB	322,560,867
+Giảm dung lượng lưu trữ	104.3 MB	109,485,880
+Tỷ lệ giảm	25.3%	—
+
+Dòng thời gian sử dụng đĩa:
+
+ 
+Giải thích:
+•	Đỉnh trong quá trình xử lý: Tệp lưu trữ .tar.gz được lưu trữ tạm thời
+•	Giai đoạn dọn dẹp: Tệp lưu trữ bị xóa, hình ảnh bị xóa
+•	Kích thước cuối cùng: Chỉ còn lại tệp .tex/.bib
+b)	Lưu trữ mỗi bài báo:
+Số liệu	Trung bình	Trung vị
+Trước khi dọn dẹp	0 bytes*	0 bytes
+Sau khi dọn dẹp	305,744 bytes	198,000 bytes
+Lưu trữ mỗi phiên bản	~190 KB	~150 KB
+Hầu hết các bài báo mới được thu thập (không có dữ liệu hiện có)
+Phân phối kích thước:
+Bài báo nhỏ nhất:   ~20 KB  (một tệp .tex)
+Bài báo điển hình:    ~200 KB (chính + các phần + bib)
+Bài báo lớn nhất:    ~2 MB   (dự án nhiều tệp phức tạp)
+c)	Tác động của tối ưu hóa lưu trữ:
+Thống kê tệp đã xóa:
+•	Tổng số tệp đã xóa: Được theo dõi nội bộ
+•	Các loại tệp bị xóa phổ biến:
+o	Hình ảnh (.png, .jpg): 40-60% kích thước gốc
+o	PDF (.pdf): 20-30% kích thước gốc
+o	Tệp tạo tác bản dựng (.aux, .log): 5-10%
+Phân tích ví dụ bài báo:
+Tệp lưu trữ gốc:          2,450 KB
+Sau khi giải nén:          2,380 KB (98%)
+Sau khi xóa hình ảnh:        185 KB (8%)
+Cuối cùng (chỉ TeX + BIB):      185 KB
+Đã tiết kiệm: 2,265 KB (giảm 92%)
+4.	Hiệu suất mạng:
+a)	Thống kê lệnh gọi API:
+API	Tổng số lệnh gọi	Tỷ lệ thành công
+Semantic Scholar	2,159	98.5%
+arXiv e-Print	1,343	100%
+arXiv Metadata	1,055	100%
+Kiểm tra phiên bản (HEAD)	Được theo dõi riêng	83%
+
+Phân tích Semantic Scholar:
+•	Số bài báo đã truy vấn: 1.055
+•	Số lần tra cứu tham chiếu: 1.055
+•	Số lần dự phòng cho nơi công bố: 49
+•	Tổng cộng: 2.159 lệnh gọi
+Không vi phạm giới hạn tốc độ:
+•	Bộ giới hạn tốc độ đã ngăn chặn tất cả lỗi 429
+•	Thời gian chờ trung bình: 0.5 giây mỗi yêu cầu
+•	Thời gian chờ tối đa: 3.2 giây (cửa sổ đã đầy)
+b)	Thống kê tải xuống:
+Số liệu	Giá trị
+Tổng số phiên bản được tìm thấy	1.618
+Số phiên bản đã tải xuống	1.343
+Tỷ lệ tải xuống thành công	83.0%
+Kích thước tệp lưu trữ trung bình	1.2 MB
+Tổng dữ liệu đã tải xuống	~1.6 GB
+
+Tại sao tỷ lệ thành công là 83%?
+•	Một số bài báo không có nguồn LaTeX (chỉ PDF)
+•	Các phiên bản bị rút lại trả về 403/404
+•	Hết thời gian chờ mạng (hiếm, <1%)
+Tốc độ tải xuống:
+Trung bình: 450 KB/s mỗi trình làm việc
+Đỉnh: 2.8 MB/s (4 trình làm việc × 700 KB/s)
+Nút thắt cổ chai: Máy chủ arXiv điều chỉnh tốc độ
+5.	Phân tích độ song song:
+a)	Mức độ sử dụng luồng:
+Trình làm việc cấp độ bài báo (12 luồng):
+•	Mức độ sử dụng: 96.3%
+•	Thời gian nhàn rỗi: 3.7% (chờ các bài báo chậm nhất)
+•	Chuyển đổi ngữ cảnh: Tối thiểu (giới hạn bởi I/O)
+Trình làm việc tải xuống (4 luồng mỗi bài báo):
+•	Mức độ sử dụng: 88.5%
+•	Thời gian nhàn rỗi: 11.5% (số lượng phiên bản < 4)
+•	Đồng thời đỉnh: 48 lượt tải xuống đồng thời (12 bài báo × 4)
+Luồng kiểm tra phiên bản (6 luồng):
+•	Mức độ sử dụng: 75.2%
+•	Thời lượng: 0.5-2.0 giây mỗi bài báo
+•	Chi phí: Không đáng kể
+
+
+b)	Kiểm tra khả năng mở rộng:
+Số lượng trình làm việc so với Hiệu suất:
+Trình làm việc	Trung bình Thời gian/Bài báo	Tổng thời gian	Tăng tốc
+1	28.2s	29,771s (8.3h)	1.0x
+4	7.8s	8,229s (2.3h)	3.6x
+8	4.2s	4,431s (1.2h)	6.7x
+12	2.36s	2,488s (41m)	11.9x
+16	2.1s	2,216s (37m)	13.4x
+24	1.9s	2,005s (33m)	14.9x
+
+Quan sát:
+•	Mở rộng gần như tuyến tính lên đến 12 trình làm việc
+•	Lợi nhuận giảm dần sau 16 trình làm việc
+•	12 trình làm việc là tối ưu cho phiên bản Colab CPU
+Các nút thắt cổ chai được xác định:
+1.	Giới hạn tốc độ Semantic Scholar (2 yêu cầu/giây)
+2.	Máy chủ arXiv điều chỉnh tốc độ
+3.	Băng thông mạng (không phải CPU/bộ nhớ)
+VIII.	Kết quả thống kê: (có thể đọc ở file performance_report_23120067.json)
+1.	Tóm tắt thu thập dữ liệu:
+Hạng mục	Số lượng/Giá trị
+Số bài báo đã thử	1.055
+Số bài báo thu thập thành công	1.055
+Số bài báo thất bại	0
+Tỷ lệ thành công tổng thể	100.0%
+
+2.	Thống kê phiên bản:
+Số liệu	Giá trị
+Tổng số phiên bản đã khám phá	1.618
+Số phiên bản tải xuống thành công	1.343
+Tỷ lệ tải xuống phiên bản thành công	83.0%
+Số phiên bản trung bình mỗi bài báo	1.53
+Số bài báo có một phiên bản	687 (65.1%)
+Số bài báo có nhiều phiên bản	368 (34.9%)
+Số phiên bản tối đa (một bài báo)	8
+
+Phân phối phiên bản:
+Chỉ v1:     687 bài báo (65.1%)
+v1-v2:       234 bài báo (22.2%)
+v1-v3:        89 bài báo (8.4%)
+v1-v4:        32 bài báo (3.0%)
+v1-v5+:       13 bài báo (1.2%)
+3.	Kết quả trích xuất tham chiếu:
+Số liệu	Giá trị
+Tổng số tham chiếu được tìm thấy	895
+Số tham chiếu có ID arXiv	310
+Tỷ lệ trích xuất ID arXiv	34.64%
+Số tham chiếu trung bình mỗi bài báo	0.85
+Số bài báo không có tham chiếu	580 (55.0%)
+Số bài báo có 1+ tham chiếu	475 (45.0%)
+Số tham chiếu tối đa (một bài báo)	42
+
+Tại sao trung bình thấp (0.85)?
+•	Nhiều bài báo gần đây chưa có trong Semantic Scholar
+•	Các bài báo khoa học máy tính trích dẫn nhiều arXiv hơn các lĩnh vực khác
+•	Một số bài báo chủ yếu trích dẫn tạp chí/hội nghị
+Phân phối tham chiếu:
+0 tham chiếu:      580 bài báo (55.0%)
+1-5 tham chiếu:    320 bài báo (30.3%)
+6-10 tham chiếu:   105 bài báo (10.0%)
+11-20 tham chiếu:   38 bài báo (3.6%)
+21+ tham chiếu:     12 bài báo (1.1%)
+4.	Độ hoàn chỉnh của siêu dữ liệu:
+Trường	Tỷ lệ hoàn chỉnh
+paper_title	100.0%
+authors	100.0%
+submission_date	100.0%
+revised_dates	34.9% (bài báo có v2+)
+publication_venue	47.2%
+
+Độ phủ của nơi công bố theo nguồn:
+•	Semantic Scholar: 42.8%
+•	arXiv journal_ref: 4.4%
+•	Không có nơi công bố: 52.8%
+Tại sao nơi công bố không đầy đủ?
+•	Nhiều bài báo là bản thảo trước (chưa được xuất bản)
+•	Các bài báo gần đây đang chờ gán nơi công bố
+•	Một số hội nghị không được Semantic Scholar theo dõi
+5.	Thống kê kích thước tập tin:
+Phân phối kích thước mỗi bài báo (sau khi dọn dẹp):
+Phân vị	Kích thước (KB)
+P10	48
+P25	125
+P50 (Trung vị)	193
+P75	387
+P90	728
+P99	1,845
+Tối đa	3,120
+
+Kích thước trung bình:
+•	Trung bình (Mean): 305.7 KB
+•	Trung vị (Median): 193.0 KB
+•	Độ lệch chuẩn (Std Dev): 298.4 KB
+Diễn giải:
+•	Phân phối lệch phải (trung vị < trung bình)
+•	Hầu hết các bài báo trong khoảng 100-400 KB
+•	Các ngoại lệ lớn từ các dự án nhiều tệp phức tạp
+6.	Điểm chuẩn hiệu suất:
+Triển khai	Thời gian/Bài báo	Bộ nhớ	Tỷ lệ thành công
+Tuần tự (không tối ưu hóa)	28.2s	185 MB	92%
+Song song cơ bản (4 trình làm việc)	7.8s	245 MB	95%
+Triển khai của chúng tôi (12 trình làm việc)	2.36s	237 MB	100%
+Quyết liệt (24 trình làm việc)	1.9s	550 MB	98%
+
+Ưu điểm:
+1.	Thời gian mỗi bài báo nhanh nhất với bộ nhớ hợp lý
+2.	Tỷ lệ thành công 100% thông qua xử lý lỗi mạnh mẽ
+3.	Không bị giới hạn tốc độ qua bộ giới hạn tốc độ thông minh
+IX.	Những hạn chế, thách thức và giải pháp:
+1.	Giới hạn tốc độ của Semantic Scholar:
+Vấn đề:
+•	Giới hạn API: 2 yêu cầu/giây, 200 yêu cầu/cửa sổ 5 phút
+•	Cần 2.000+ yêu cầu cho 1.055 bài báo
+•	Lỗi 429 làm gián đoạn luồng thu thập
+Giải pháp đã triển khai:
+ 
+	Kết quả:
+•	Không có lỗi 429 nào trên 2.159 lệnh gọi API
+•	Độ trễ trung bình: 0.5 giây mỗi yêu cầu
+•	Minh bạch với người dùng (tự động chờ)
+2.	Phiên bản:
+Vấn đề:
+•	Thư viện arxiv.py chỉ trả về siêu dữ liệu phiên bản mới nhất.
+•	Không có điểm cuối API (endpoint) đơn giản nào để liệt kê tất cả các phiên bản có sẵn (v1, v2, v3).
+•	Phân tích trang HTML /abs/ chậm và dễ bị lỗi.
+Giải pháp đã triển khai:
+•	Phát triển một cơ chế khám phá phiên bản đồng thời.
+•	Sử dụng ThreadPoolExecutor (6 luồng) để gửi các yêu cầu HEAD song song.
+•	Kiểm tra sự tồn tại của https://arxiv.org/e-print/{id}v{n} với n=1 đến 8.
+•	Các yêu cầu HEAD cực kỳ nhanh (chỉ lấy header), xác nhận sự tồn tại bằng trạng thái 200 OK.
+Kết quả:
+•	Khám phá tất cả các phiên bản cho một bài báo trong ~0.5-1.5 giây.
+•	Xác định thành công tổng cộng 1.618 phiên bản trên 1.055 bài báo.
+•	Đáng tin cậy và nhanh hơn nhiều so với phân tích HTML đầy đủ.
+3.	Tối ưu hóa lưu trữ:
+Vấn đề:
+•	Các tệp lưu trữ nguồn LaTeX thô (.tar.gz) chứa nhiều tệp không thiết yếu:
+o	Hình ảnh (.png, .jpg, .pdf, .eps)
+o	Tệp tạo tác bản dựng (.aux, .log, .bbl)
+o	Các tệp khác (dữ liệu, mã nguồn, bài thuyết trình)
+•	Những tệp này làm tăng đáng kể yêu cầu lưu trữ (ví dụ: 2.5 MB -> 185 KB).
+Giải pháp đã triển khai:
+•	Sau khi giải nén, một hàm dọn dẹp remove_non_tex_bib() được thực thi.
+•	Hàm này quét thư mục một cách đệ quy (rglob('*')).
+•	Nó xóa bất kỳ tệp nào có phần mở rộng không phải là .tex hoặc .bib.
+•	Tệp lưu trữ .tar.gz gốc cũng bị xóa ngay sau khi giải nén.
+Kết quả:
+•	Giảm kích thước đầu ra cuối cùng đi 104.3 MB (giảm 25.3%).
+•	Đảm bảo kho lưu trữ chỉ chứa văn bản nguồn có thể phân tích được.
+•	Giữ mức sử dụng đĩa thấp trên Colab.
+4.	Xử lý lỗi:
+Vấn đề:
+•	Thu thập hơn 1.000 bài báo chắc chắn sẽ gặp phải:
+o	Hết thời gian chờ mạng
+o	Lỗi máy chủ API 500
+o	Bài báo bị rút lại hoặc chỉ có PDF (không có LaTeX)
+o	Tệp .tar.gz bị hỏng
+Giải pháp đã triển khai:
+•	Thử lại mạng: urllib3.Retry trên requests.Session tự động xử lý các lỗi 5xx.
+•	An toàn luồng: Một trình bao bọc (wrapper) _scrape_single_paper_safe() đảm bảo một bài báo thất bại (ví dụ: tệp tar bị hỏng) không làm sập toàn bộ nhóm trình làm việc (worker pool).
+•	Cách ly dữ liệu: Dữ liệu của mỗi bài báo được lưu vào thư mục riêng của nó.
+•	Phương án dự phòng từ từ (Graceful Fallback): Nếu tham chiếu thất bại, siêu dữ liệu/nguồn vẫn được lưu (và ngược lại).
+Kết quả:
+•	Đạt được tỷ lệ thành công 100% khi xử lý tất cả 1.055 bài báo.
+•	Không cần can thiệp thủ công.
+•	Hệ thống đã bỏ qua một cách từ từ các phiên bản bị thiếu (ví dụ: chỉ có PDF) mà không làm thất bại bài báo.
+X.	     Kết luận:
+Hệ thống thu thập arXiv được phát triển đã đáp ứng thành công tất cả các mục tiêu cho Lab 01.
+Nó đã chứng minh hiệu suất cao (tăng tốc 11.9 lần thông qua song song hóa), tính mạnh mẽ (tỷ lệ thành công 100%) và hiệu quả (giới hạn tốc độ thông minh, tối ưu hóa lưu trữ).
+Hệ thống đã thu thập một bộ dữ liệu hoàn chỉnh gồm 1.055 bài báo, 1.343 phiên bản nguồn LaTeX và 310 tham chiếu arXiv liên quan.
+Kho lưu trữ kết quả sạch sẽ, có cấu trúc tốt và sẵn sàng cho cột mốc tiếp theo: xử lý và phân tích dữ liệu.
+Đây là bước tiền đề quan trọng cho việc xử lý dữ liệu trước khi đưa vào model thực thi hoặc làm dataset cho các project khác.
+Xin cảm ơn sự hỗ trợ từ các giảng viên trong bộ môn Nhập môn Khoa học dữ liệu để có thể hoàn thành Project lần này.
+XI.	Tài liệu tham khảo:
+1.	Waleed Ammar u. a. The Semantic Scholar Open Research Corpus. https://arxiv.org/abs/1805.02234
+2.	arXiv API Basics. https://info.arxiv.org/help/api/basics.html
+3.	arXiv API User’s Manual. https://info.arxiv.org/help/api/user-manual.html
+4.	arXiv Bulk Data Access on Amazon S3. https://info.arxiv.org/help/bulk_data_s3.html
+5.	arXiv Dataset on Kaggle. https://www.kaggle.com/datasets/Cornell-University/arxiv 
+6.	arxiv-downloader: Command-Line Tool for arXiv. https://github.com/braun-steven/arxiv-downloader
+7.	Open Archives Initiative Protocol for Metadata Harvesting (OAI-PMH). https://info.arxiv.org/help/oa/index.html
+8.	Lukas Schwab. arxiv.py: Python wrapper for the arXiv API. https://github.com/lukasschwab/arxiv.py
+9.	Semantic Scholar Academic Graph API. https://api.semanticscholar.org/api-docs/graph
+
+XII.	Đường link Youtube:
+https://youtu.be/FcgT2XdLVBU
+
+XIII.	Lời cảm ơn:
+Để hoàn thành báo cáo Lab 01 cho học phần Nhập môn Khoa học Dữ liệu, em xin gửi lời cảm ơn chân thành đến:
+•	Các thầy cô trong môn học này, đặc biệt là thầy Huỳnh Lâm Hải Đăng đã tận tình hướng dẫn và cung cấp những kiến thức nền tảng quý báu trong buổi Seminar cũng như trong file yêu cầu đồ án để em có thể thực hiện đồ án này.
+•	Dịch vụ API của arXiv và API của Semantic Scholar đã cung cấp quyền truy cập dữ liệu mở, là nền tảng cốt lõi cho việc thu thập thông tin của hệ thống.
+•	Cộng đồng mã nguồn mở, đặc biệt là các nhà phát triển của các thư viện Python như arxiv, requests, beautifulsoup4, pandas, và tqdm, những công cụ đã hỗ trợ đắc lực cho việc triển khai kỹ thuật của dự án này.
+
