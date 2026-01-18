@@ -45,6 +45,14 @@ seaborn==0.13.0
 # Testing
 pytest==7.4.3
 
+# Additional dependencies that might be needed
+ipykernel>=6.25.0  # for Jupyter notebooks
+jupyter>=1.0.0  # if running notebooks
+beautifulsoup4>=4.12.0  # often needed for parsing
+lxml>=4.9.0  # XML/HTML parser
+openpyxl>=3.1.0  # if working with Excel files
+requests>=2.31.0  # for HTTP requests
+
 # ============================================
 # Installation Instructions:
 # 1. pip install -r requirements.txt
